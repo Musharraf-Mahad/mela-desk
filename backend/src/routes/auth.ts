@@ -3,6 +3,14 @@ import argon2 from 'argon2'
 import { Router } from 'express'
 import { z } from 'zod'
 import { prisma } from '../lib/prisma.js'
+import {
+  clearSessionCookie,
+  createSessionToken,
+  hashSessionToken,
+  readSessionCookie,
+  SESSION_DURATION_SECONDS,
+  setSessionCookie,
+} from '../lib/session.js'
 
 const publicUserSelect = {
   id: true,
@@ -96,10 +104,15 @@ authRouter.post('/login', async (req, res) => {
       select: {
         ...publicUserSelect,
         passwordHash: true,
+        isActive: true,
       },
     })
 
-    if (!user || !(await argon2.verify(user.passwordHash, parsed.data.password))) {
+    if (
+      !user ||
+      !user.isActive ||
+      !(await argon2.verify(user.passwordHash, parsed.data.password))
+    ) {
       res.status(401).json({
         success: false,
         message: 'Invalid email or password',
@@ -107,12 +120,27 @@ authRouter.post('/login', async (req, res) => {
       return
     }
 
-    const { passwordHash: _passwordHash, ...safeUser } = user
+    const token = createSessionToken()
+    const expiresAt = new Date(Date.now() + SESSION_DURATION_SECONDS * 1000)
+    await prisma.session.create({
+      data: {
+        tokenHash: hashSessionToken(token),
+        userId: user.id,
+        expiresAt,
+      },
+    })
+    setSessionCookie(res, token)
 
     res.status(200).json({
       success: true,
       data: {
-        user: safeUser,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          createdAt: user.createdAt,
+        },
       },
     })
   } catch (error) {
@@ -120,6 +148,66 @@ authRouter.post('/login', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Unable to log in',
+    })
+  }
+})
+
+authRouter.get('/me', async (req, res) => {
+  const token = readSessionCookie(req)
+
+  if (!token) {
+    res.status(401).json({ success: false, message: 'Authentication required' })
+    return
+  }
+
+  try {
+    const session = await prisma.session.findFirst({
+      where: {
+        tokenHash: hashSessionToken(token),
+        expiresAt: { gt: new Date() },
+        user: { isActive: true },
+      },
+      select: {
+        user: { select: publicUserSelect },
+      },
+    })
+
+    if (!session) {
+      clearSessionCookie(res)
+      res.status(401).json({ success: false, message: 'Authentication required' })
+      return
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { user: session.user },
+    })
+  } catch (error) {
+    console.error('Session lookup failed:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Unable to verify session',
+    })
+  }
+})
+
+authRouter.post('/logout', async (req, res) => {
+  const token = readSessionCookie(req)
+
+  try {
+    if (token) {
+      await prisma.session.deleteMany({
+        where: { tokenHash: hashSessionToken(token) },
+      })
+    }
+
+    clearSessionCookie(res)
+    res.status(200).json({ success: true, message: 'Logged out successfully' })
+  } catch (error) {
+    console.error('Session revocation failed:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Unable to log out',
     })
   }
 })
