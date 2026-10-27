@@ -197,6 +197,40 @@ describe('ticket routes', () => {
     })
   })
 
+  it('searches matching subject and description within the customers own tickets', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: customer })
+    prismaMock.$transaction.mockResolvedValue([[], 0])
+
+    const response = await fetch(
+      `${baseUrl}/api/tickets?search=delivery%20delay&status=open`,
+      { headers: { cookie: `${SESSION_COOKIE_NAME}=customer-token` } },
+    )
+
+    expect(response.status).toBe(200)
+    expect(prismaMock.ticket.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: 'open',
+          OR: [
+            { subject: { contains: 'delivery delay' } },
+            { description: { contains: 'delivery delay' } },
+          ],
+          customerId: customer.id,
+        },
+      }),
+    )
+    expect(prismaMock.ticket.count).toHaveBeenCalledWith({
+      where: {
+        status: 'open',
+        OR: [
+          { subject: { contains: 'delivery delay' } },
+          { description: { contains: 'delivery delay' } },
+        ],
+        customerId: customer.id,
+      },
+    })
+  })
+
   it('limits agent ticket lists to tickets assigned to that agent', async () => {
     prismaMock.session.findFirst.mockResolvedValue({ user: agent })
     prismaMock.ticket.findMany.mockResolvedValue([])
@@ -223,6 +257,22 @@ describe('ticket routes', () => {
     })
 
     expect(response.status).toBe(400)
+    expect(prismaMock.ticket.findMany).not.toHaveBeenCalled()
+  })
+
+  it('rejects empty or oversized ticket search terms', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: customer })
+
+    const emptySearchResponse = await fetch(`${baseUrl}/api/tickets?search=%20%20`, {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=customer-token` },
+    })
+    const longSearchResponse = await fetch(
+      `${baseUrl}/api/tickets?search=${'a'.repeat(101)}`,
+      { headers: { cookie: `${SESSION_COOKIE_NAME}=customer-token` } },
+    )
+
+    expect(emptySearchResponse.status).toBe(400)
+    expect(longSearchResponse.status).toBe(400)
     expect(prismaMock.ticket.findMany).not.toHaveBeenCalled()
   })
 

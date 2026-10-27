@@ -15,6 +15,7 @@ const listTicketsSchema = z.object({
   status: z.nativeEnum(TicketStatus).optional(),
   category: z.nativeEnum(TicketCategory).optional(),
   priority: z.nativeEnum(TicketPriority).optional(),
+  search: z.string().trim().min(1).max(100).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 })
@@ -144,9 +145,17 @@ ticketsRouter.get('/', authenticate, async (req, res) => {
   }
 
   try {
-    const { page, pageSize, ...filters } = parsed.data
+    const { page, pageSize, search, ...filters } = parsed.data
     const where = {
       ...filters,
+      ...(search
+        ? {
+            OR: [
+              { subject: { contains: search } },
+              { description: { contains: search } },
+            ],
+          }
+        : {}),
       ...(req.user!.role === UserRole.customer
         ? { customerId: req.user!.id }
         : req.user!.role === UserRole.agent

@@ -104,10 +104,10 @@ All authenticated routes use the `mela_desk_session` HttpOnly cookie issued by `
 | `POST` | `/api/auth/login` | Public login |
 | `GET` | `/api/auth/me` | Authenticated user |
 | `POST` | `/api/auth/logout` | Revokes the session cookie if present |
-| `PATCH` | `/api/auth/profile` | Authenticated user; updates own display name
+| `PATCH` | `/api/auth/profile` | Authenticated user; updates own display name |
 | `POST` | `/api/auth/change-password` | Authenticated user |
 | `POST` | `/api/tickets` | Customer |
-| `GET` | `/api/tickets` | Customer's tickets, assigned agent tickets, or all tickets for admins |
+| `GET` | `/api/tickets` | Role-scoped tickets; supports status/category/priority filters and subject/description search |
 | `GET` | `/api/tickets/:ticketId` | Ticket owner, assigned agent, or admin |
 | `POST` | `/api/tickets/:ticketId/comments` | Ticket owner, assigned agent, or admin |
 | `PATCH` | `/api/tickets/:ticketId/status` | Assigned agent or admin |
