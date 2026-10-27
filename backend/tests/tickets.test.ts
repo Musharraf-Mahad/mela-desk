@@ -531,4 +531,164 @@ describe('ticket routes', () => {
     })
     expect(transaction.auditLog.create).toHaveBeenCalled()
   })
+
+  it('prevents agents from assigning tickets', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: agent })
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/assignee`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=agent-token`,
+      },
+      body: JSON.stringify({ assigneeId: 'agent-2' }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('validates assignment input before running a transaction', async () => {
+    const admin = { id: 'admin-1', role: 'admin' }
+    prismaMock.session.findFirst.mockResolvedValue({ user: admin })
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/assignee`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=admin-token`,
+      },
+      body: JSON.stringify({ assigneeId: 42 }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('assigns a ticket to an active agent and audits the change', async () => {
+    const admin = { id: 'admin-1', role: 'admin' }
+    prismaMock.session.findFirst.mockResolvedValue({ user: admin })
+    const transaction = {
+      ticket: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'ticket-1',
+          assigneeId: null,
+        }),
+        update: vi.fn().mockResolvedValue({
+          id: 'ticket-1',
+          assignee: { id: 'agent-2', name: 'Agent Two' },
+        }),
+      },
+      user: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'agent-2' }),
+      },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/assignee`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=admin-token`,
+      },
+      body: JSON.stringify({ assigneeId: 'agent-2' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(transaction.ticket.findFirst).toHaveBeenCalledWith({
+      where: { id: 'ticket-1' },
+      select: { id: true, assigneeId: true },
+    })
+    expect(transaction.user.findFirst).toHaveBeenCalledWith({
+      where: { id: 'agent-2', role: 'agent', isActive: true },
+      select: { id: true },
+    })
+    expect(transaction.ticket.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'ticket-1' },
+        data: { assigneeId: 'agent-2' },
+      }),
+    )
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        ticketId: 'ticket-1',
+        userId: admin.id,
+        action: 'ticket.assigned',
+        details: JSON.stringify({ from: null, to: 'agent-2' }),
+      },
+    })
+  })
+
+  it('rejects assignments to inactive users and does not update the ticket', async () => {
+    const admin = { id: 'admin-1', role: 'admin' }
+    prismaMock.session.findFirst.mockResolvedValue({ user: admin })
+    const transaction = {
+      ticket: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'ticket-1',
+          assigneeId: null,
+        }),
+        update: vi.fn(),
+      },
+      user: { findFirst: vi.fn().mockResolvedValue(null) },
+      auditLog: { create: vi.fn() },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/assignee`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=admin-token`,
+      },
+      body: JSON.stringify({ assigneeId: 'inactive-user' }),
+    })
+
+    expect(response.status).toBe(422)
+    expect(transaction.ticket.update).not.toHaveBeenCalled()
+    expect(transaction.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('unassigns a ticket and audits the previous agent', async () => {
+    const admin = { id: 'admin-1', role: 'admin' }
+    prismaMock.session.findFirst.mockResolvedValue({ user: admin })
+    const transaction = {
+      ticket: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'ticket-1',
+          assigneeId: 'agent-2',
+        }),
+        update: vi.fn().mockResolvedValue({ id: 'ticket-1', assignee: null }),
+      },
+      user: { findFirst: vi.fn() },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/assignee`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=admin-token`,
+      },
+      body: JSON.stringify({ assigneeId: null }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(transaction.user.findFirst).not.toHaveBeenCalled()
+    expect(transaction.ticket.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { assigneeId: null },
+      }),
+    )
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        ticketId: 'ticket-1',
+        userId: admin.id,
+        action: 'ticket.unassigned',
+        details: JSON.stringify({ from: 'agent-2', to: null }),
+      },
+    })
+  })
 })

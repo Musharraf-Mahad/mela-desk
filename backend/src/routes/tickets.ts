@@ -28,6 +28,10 @@ const updateTicketStatusSchema = z.object({
   status: z.nativeEnum(TicketStatus),
 })
 
+const assignTicketSchema = z.object({
+  assigneeId: z.string().trim().min(1).max(191).nullable(),
+})
+
 const ticketSelect = {
   id: true,
   subject: true,
@@ -294,6 +298,102 @@ ticketsRouter.patch(
       res.status(500).json({
         success: false,
         message: 'Unable to update ticket status',
+      })
+    }
+  },
+)
+
+ticketsRouter.patch(
+  '/:ticketId/assignee',
+  authenticate,
+  requireRole(UserRole.admin),
+  async (req, res) => {
+    const ticketId = req.params.ticketId
+
+    if (typeof ticketId !== 'string') {
+      res.status(400).json({ success: false, message: 'Invalid ticket ID' })
+      return
+    }
+
+    const parsed = assignTicketSchema.safeParse(req.body)
+
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid ticket assignment',
+        errors: parsed.error.issues.map(({ path, message }) => ({
+          field: path.join('.'),
+          message,
+        })),
+      })
+      return
+    }
+
+    try {
+      const result = await prisma.$transaction(async (transaction) => {
+        const existingTicket = await transaction.ticket.findFirst({
+          where: { id: ticketId },
+          select: { id: true, assigneeId: true },
+        })
+
+        if (!existingTicket) return { kind: 'ticket_not_found' as const }
+
+        if (parsed.data.assigneeId !== null) {
+          const assignee = await transaction.user.findFirst({
+            where: {
+              id: parsed.data.assigneeId,
+              role: UserRole.agent,
+              isActive: true,
+            },
+            select: { id: true },
+          })
+
+          if (!assignee) return { kind: 'invalid_assignee' as const }
+        }
+
+        const ticket = await transaction.ticket.update({
+          where: { id: existingTicket.id },
+          data: { assigneeId: parsed.data.assigneeId },
+          select: ticketSelect,
+        })
+
+        await transaction.auditLog.create({
+          data: {
+            ticketId: existingTicket.id,
+            userId: req.user!.id,
+            action: parsed.data.assigneeId ? 'ticket.assigned' : 'ticket.unassigned',
+            details: JSON.stringify({
+              from: existingTicket.assigneeId,
+              to: parsed.data.assigneeId,
+            }),
+          },
+        })
+
+        return { kind: 'updated' as const, ticket }
+      })
+
+      if (result.kind === 'ticket_not_found') {
+        res.status(404).json({ success: false, message: 'Ticket not found' })
+        return
+      }
+
+      if (result.kind === 'invalid_assignee') {
+        res.status(422).json({
+          success: false,
+          message: 'Assignee must be an active agent',
+        })
+        return
+      }
+
+      res.status(200).json({
+        success: true,
+        data: { ticket: result.ticket },
+      })
+    } catch (error) {
+      console.error('Ticket assignment failed:', error)
+      res.status(500).json({
+        success: false,
+        message: 'Unable to update ticket assignment',
       })
     }
   },
