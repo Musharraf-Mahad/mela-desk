@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import { getCorsOptions } from './lib/cors.js'
 import { prisma } from './lib/prisma.js'
+import { jsonBodyErrorHandler } from './middleware/jsonBodyErrors.js'
 import auditLogsRouter from './routes/auditLogs.js'
 import authRouter from './routes/auth.js'
 import ticketsRouter from './routes/tickets.js'
@@ -11,6 +12,7 @@ const app = express()
 
 app.use(cors(getCorsOptions()))
 app.use(express.json())
+app.use(jsonBodyErrorHandler)
 app.use('/api/auth', authRouter)
 app.use('/api/tickets', ticketsRouter)
 app.use('/api/users', usersRouter)
