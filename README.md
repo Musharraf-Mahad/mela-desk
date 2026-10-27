@@ -11,7 +11,9 @@
 Copy the repository URL from GitHub, then run:
 
 ```bash
-git clone https://github.com/Musharraf-Mahad/mela-desk ```
+git clone https://github.com/Musharraf-Mahad/mela-desk.git
+cd mela-desk
+```
 
 ## 3. Create a Branch
 
@@ -62,3 +64,56 @@ git switch main
 git pull origin main
 git switch -c feature/next-task
 ```
+
+## 7. Backend API
+
+The backend uses Node.js, Express, TypeScript, Prisma, and MySQL. From the repository root, install the backend dependencies and configure its environment:
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+```
+
+In `backend/.env`, set `DATABASE_URL` to your MySQL connection string, `PORT` to the API port, and `FRONTEND_ORIGINS` to a comma-separated list of trusted frontend origins. For local Vite development, the default frontend origin is `http://localhost:5173`.
+
+For a fresh, disposable development database, create the schema from the Prisma models and generate the client:
+
+```bash
+npm run db:push
+npm run db:generate
+```
+
+Do not use `db:push` on a shared or production database. Review and apply database changes using migrations in those environments.
+
+Run the API, tests, and TypeScript build from the `backend` directory:
+
+```bash
+npm run dev
+npm test
+npm run build
+```
+
+### Current API routes
+
+All authenticated routes use the `mela_desk_session` HttpOnly cookie issued by `POST /api/auth/login`.
+
+| Method | Route | Access |
+|---|---|---|
+| `POST` | `/api/auth/register` | Public customer registration |
+| `POST` | `/api/auth/login` | Public login |
+| `GET` | `/api/auth/me` | Authenticated user |
+| `POST` | `/api/auth/logout` | Revokes the session cookie if present |
+| `POST` | `/api/auth/change-password` | Authenticated user |
+| `POST` | `/api/tickets` | Customer |
+| `GET` | `/api/tickets` | Customer's tickets, assigned agent tickets, or all tickets for admins |
+| `GET` | `/api/tickets/:ticketId` | Ticket owner, assigned agent, or admin |
+| `POST` | `/api/tickets/:ticketId/comments` | Ticket owner, assigned agent, or admin |
+| `PATCH` | `/api/tickets/:ticketId/status` | Assigned agent or admin |
+| `PATCH` | `/api/tickets/:ticketId/assignee` | Admin |
+| `POST` | `/api/tickets/:ticketId/claim` | Agent; open unassigned tickets only |
+| `GET` | `/api/users/agents` | Admin |
+| `PATCH` | `/api/users/:userId/status` | Admin |
+| `GET` | `/api/health` | Public; reports API/database health |
+
+Customer ticket responses omit internal comments. Ticket status, assignment, account status, creation, and comment changes are recorded in the audit log.
