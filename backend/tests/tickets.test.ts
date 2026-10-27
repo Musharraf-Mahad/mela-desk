@@ -10,8 +10,12 @@ const { prismaMock } = vi.hoisted(() => ({
     },
     ticket: {
       create: vi.fn(),
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
+    },
+    comment: {
+      create: vi.fn(),
     },
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
@@ -204,5 +208,189 @@ describe('ticket routes', () => {
 
     expect(response.status).toBe(400)
     expect(prismaMock.ticket.findMany).not.toHaveBeenCalled()
+  })
+
+  it('returns a customers ticket with internal comments fully excluded', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: customer })
+    prismaMock.ticket.findFirst.mockResolvedValue({
+      id: 'ticket-1',
+      comments: [
+        {
+          id: 'public-comment',
+          body: 'Visible reply',
+          isInternal: false,
+          author: { id: 'agent-1', name: 'Agent' },
+        },
+        {
+          id: 'internal-comment',
+          body: 'Private agent note',
+          isInternal: true,
+          author: { id: 'agent-1', name: 'Agent' },
+        },
+      ],
+    })
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1`, {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=customer-token` },
+    })
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(prismaMock.ticket.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'ticket-1', customerId: customer.id },
+        select: expect.objectContaining({
+          comments: expect.objectContaining({
+            where: { isInternal: false },
+          }),
+        }),
+      }),
+    )
+    expect(payload.data.ticket.comments).toEqual([
+      expect.objectContaining({ id: 'public-comment', body: 'Visible reply' }),
+    ])
+    expect(JSON.stringify(payload)).not.toContain('Private agent note')
+    expect(JSON.stringify(payload)).not.toContain('"isInternal"')
+  })
+
+  it('returns 404 when a customer requests another customers ticket', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: customer })
+    prismaMock.ticket.findFirst.mockResolvedValue(null)
+
+    const response = await fetch(`${baseUrl}/api/tickets/other-ticket`, {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=customer-token` },
+    })
+
+    expect(response.status).toBe(404)
+    expect(prismaMock.ticket.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'other-ticket', customerId: customer.id },
+      }),
+    )
+  })
+
+  it('allows staff to view internal comments on tickets in their scope', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: agent })
+    prismaMock.ticket.findFirst.mockResolvedValue({
+      id: 'ticket-1',
+      comments: [
+        {
+          id: 'internal-comment',
+          body: 'Private agent note',
+          isInternal: true,
+          author: { id: agent.id, name: 'Agent' },
+        },
+      ],
+    })
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1`, {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=agent-token` },
+    })
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(prismaMock.ticket.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'ticket-1', assigneeId: agent.id },
+        select: expect.objectContaining({
+          comments: expect.objectContaining({ where: undefined }),
+        }),
+      }),
+    )
+    expect(payload.data.ticket.comments[0]).toMatchObject({
+      body: 'Private agent note',
+      isInternal: true,
+    })
+  })
+
+  it('does not allow customers to request internal comments', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: customer })
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/comments`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=customer-token`,
+      },
+      body: JSON.stringify({ body: 'Private note', isInternal: true }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(prismaMock.ticket.findFirst).not.toHaveBeenCalled()
+    expect(prismaMock.comment.create).not.toHaveBeenCalled()
+  })
+
+  it('creates a public customer comment using the authenticated author id', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: customer })
+    prismaMock.ticket.findFirst.mockResolvedValue({ id: 'ticket-1' })
+    prismaMock.comment.create.mockResolvedValue({
+      id: 'comment-1',
+      body: 'Customer reply',
+      isInternal: false,
+      author: { id: customer.id, name: 'Customer' },
+    })
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/comments`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=customer-token`,
+      },
+      body: JSON.stringify({ body: ' Customer reply ', authorId: 'other-user' }),
+    })
+    const payload = await response.json()
+
+    expect(response.status).toBe(201)
+    expect(prismaMock.ticket.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'ticket-1', customerId: customer.id },
+      }),
+    )
+    expect(prismaMock.comment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          ticketId: 'ticket-1',
+          authorId: customer.id,
+          body: 'Customer reply',
+          isInternal: false,
+        },
+      }),
+    )
+    expect(payload.data.comment).not.toHaveProperty('isInternal')
+  })
+
+  it('allows an assigned agent to add an internal note', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: agent })
+    prismaMock.ticket.findFirst.mockResolvedValue({ id: 'ticket-1' })
+    prismaMock.comment.create.mockResolvedValue({
+      id: 'comment-2',
+      body: 'Internal note',
+      isInternal: true,
+      author: { id: agent.id, name: 'Agent' },
+    })
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/comments`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=agent-token`,
+      },
+      body: JSON.stringify({ body: 'Internal note', isInternal: true }),
+    })
+
+    expect(response.status).toBe(201)
+    expect(prismaMock.ticket.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'ticket-1', assigneeId: agent.id },
+      }),
+    )
+    expect(prismaMock.comment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          authorId: agent.id,
+          isInternal: true,
+        }),
+      }),
+    )
   })
 })
