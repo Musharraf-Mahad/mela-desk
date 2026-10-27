@@ -249,6 +249,74 @@ describe('ticket routes', () => {
     )
   })
 
+  it('requires an authenticated agent to browse the available ticket queue', async () => {
+    const response = await fetch(`${baseUrl}/api/tickets/queue`)
+
+    expect(response.status).toBe(401)
+    expect(prismaMock.ticket.findMany).not.toHaveBeenCalled()
+  })
+
+  it('prevents customers from browsing the available ticket queue', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: customer })
+
+    const response = await fetch(`${baseUrl}/api/tickets/queue`, {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=customer-token` },
+    })
+
+    expect(response.status).toBe(403)
+    expect(prismaMock.ticket.findMany).not.toHaveBeenCalled()
+  })
+
+  it('lists only open unassigned tickets and supports queue filters and pagination', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: agent })
+    prismaMock.$transaction.mockResolvedValue([[], 0])
+
+    const response = await fetch(
+      `${baseUrl}/api/tickets/queue?category=technical&priority=high&search=delivery&page=2&pageSize=5`,
+      { headers: { cookie: `${SESSION_COOKIE_NAME}=agent-token` } },
+    )
+
+    expect(response.status).toBe(200)
+    const where = {
+      category: 'technical',
+      priority: 'high',
+      status: 'open',
+      assigneeId: null,
+      OR: [
+        { subject: { contains: 'delivery' } },
+        { description: { contains: 'delivery' } },
+      ],
+    }
+    expect(prismaMock.ticket.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where,
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        skip: 5,
+        take: 5,
+      }),
+    )
+    expect(prismaMock.ticket.count).toHaveBeenCalledWith({ where })
+    expect(await response.json()).toEqual({
+      success: true,
+      data: {
+        tickets: [],
+        pagination: { page: 2, pageSize: 5, total: 0, totalPages: 0 },
+      },
+    })
+  })
+
+  it('rejects invalid available-ticket queue filters', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: agent })
+
+    const response = await fetch(`${baseUrl}/api/tickets/queue?page=0`, {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=agent-token` },
+    })
+
+    expect(response.status).toBe(400)
+    expect(prismaMock.ticket.findMany).not.toHaveBeenCalled()
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
   it('rejects invalid ticket filters', async () => {
     prismaMock.session.findFirst.mockResolvedValue({ user: customer })
 

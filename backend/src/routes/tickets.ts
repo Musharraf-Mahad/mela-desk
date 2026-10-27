@@ -20,6 +20,14 @@ const listTicketsSchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 })
 
+const listQueueSchema = z.object({
+  category: z.nativeEnum(TicketCategory).optional(),
+  priority: z.nativeEnum(TicketPriority).optional(),
+  search: z.string().trim().min(1).max(100).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+})
+
 const createCommentSchema = z.object({
   body: z.string().trim().min(1).max(10_000),
   isInternal: z.boolean().optional(),
@@ -193,6 +201,73 @@ ticketsRouter.get('/', authenticate, async (req, res) => {
     })
   }
 })
+
+ticketsRouter.get(
+  '/queue',
+  authenticate,
+  requireRole(UserRole.agent),
+  async (req, res) => {
+    const parsed = listQueueSchema.safeParse(req.query)
+
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid ticket queue filters',
+        errors: parsed.error.issues.map(({ path, message }) => ({
+          field: path.join('.'),
+          message,
+        })),
+      })
+      return
+    }
+
+    try {
+      const { page, pageSize, search, ...filters } = parsed.data
+      const where = {
+        ...filters,
+        status: TicketStatus.open,
+        assigneeId: null,
+        ...(search
+          ? {
+              OR: [
+                { subject: { contains: search } },
+                { description: { contains: search } },
+              ],
+            }
+          : {}),
+      }
+      const [tickets, total] = await prisma.$transaction([
+        prisma.ticket.findMany({
+          where,
+          select: ticketSelect,
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        prisma.ticket.count({ where }),
+      ])
+
+      res.status(200).json({
+        success: true,
+        data: {
+          tickets,
+          pagination: {
+            page,
+            pageSize,
+            total,
+            totalPages: Math.ceil(total / pageSize),
+          },
+        },
+      })
+    } catch (error) {
+      console.error('Ticket queue lookup failed:', error)
+      res.status(500).json({
+        success: false,
+        message: 'Unable to list available tickets',
+      })
+    }
+  },
+)
 
 ticketsRouter.get('/:ticketId', authenticate, async (req, res) => {
   const ticketId = req.params.ticketId

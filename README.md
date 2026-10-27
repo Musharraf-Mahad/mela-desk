@@ -108,6 +108,7 @@ All authenticated routes use the `mela_desk_session` HttpOnly cookie issued by `
 | `POST` | `/api/auth/change-password` | Authenticated user |
 | `POST` | `/api/tickets` | Customer |
 | `GET` | `/api/tickets` | Role-scoped tickets; supports status/category/priority filters and subject/description search |
+| `GET` | `/api/tickets/queue` | Agent; paginated open unassigned tickets with category/priority/search filters |
 | `GET` | `/api/tickets/:ticketId` | Ticket owner, assigned agent, or admin |
 | `POST` | `/api/tickets/:ticketId/comments` | Ticket owner, assigned agent, or admin |
 | `PATCH` | `/api/tickets/:ticketId/status` | Assigned agent or admin |
