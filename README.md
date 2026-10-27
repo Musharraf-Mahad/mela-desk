@@ -114,6 +114,7 @@ All authenticated routes use the `mela_desk_session` HttpOnly cookie issued by `
 | `POST` | `/api/tickets/:ticketId/claim` | Agent; open unassigned tickets only |
 | `GET` | `/api/users/agents` | Admin |
 | `PATCH` | `/api/users/:userId/status` | Admin |
+| `GET` | `/api/audit-logs` | Admin; filterable by ticket, user, and action |
 | `GET` | `/api/health` | Public; reports API/database health |
 
 Customer ticket responses omit internal comments. Ticket status, assignment, account status, creation, and comment changes are recorded in the audit log.
