@@ -399,6 +399,88 @@ ticketsRouter.patch(
   },
 )
 
+ticketsRouter.post(
+  '/:ticketId/claim',
+  authenticate,
+  requireRole(UserRole.agent),
+  async (req, res) => {
+    const ticketId = req.params.ticketId
+
+    if (typeof ticketId !== 'string') {
+      res.status(400).json({ success: false, message: 'Invalid ticket ID' })
+      return
+    }
+
+    try {
+      const result = await prisma.$transaction(async (transaction) => {
+        const claim = await transaction.ticket.updateMany({
+          where: {
+            id: ticketId,
+            assigneeId: null,
+            status: TicketStatus.open,
+          },
+          data: { assigneeId: req.user!.id },
+        })
+
+        if (claim.count === 0) {
+          const existingTicket = await transaction.ticket.findFirst({
+            where: { id: ticketId },
+            select: { id: true },
+          })
+
+          return existingTicket
+            ? { kind: 'unavailable' as const }
+            : { kind: 'not_found' as const }
+        }
+
+        await transaction.auditLog.create({
+          data: {
+            ticketId,
+            userId: req.user!.id,
+            action: 'ticket.claimed',
+            details: JSON.stringify({ from: null, to: req.user!.id }),
+          },
+        })
+
+        const ticket = await transaction.ticket.findFirst({
+          where: { id: ticketId },
+          select: ticketSelect,
+        })
+
+        if (!ticket) {
+          throw new Error('Claimed ticket could not be reloaded')
+        }
+
+        return { kind: 'claimed' as const, ticket }
+      })
+
+      if (result.kind === 'not_found') {
+        res.status(404).json({ success: false, message: 'Ticket not found' })
+        return
+      }
+
+      if (result.kind === 'unavailable') {
+        res.status(409).json({
+          success: false,
+          message: 'Ticket is no longer available to claim',
+        })
+        return
+      }
+
+      res.status(200).json({
+        success: true,
+        data: { ticket: result.ticket },
+      })
+    } catch (error) {
+      console.error('Ticket claim failed:', error)
+      res.status(500).json({
+        success: false,
+        message: 'Unable to claim ticket',
+      })
+    }
+  },
+)
+
 ticketsRouter.post('/:ticketId/comments', authenticate, async (req, res) => {
   const ticketId = req.params.ticketId
 

@@ -13,6 +13,7 @@ const { prismaMock } = vi.hoisted(() => ({
       findFirst: vi.fn(),
       findMany: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
       count: vi.fn(),
     },
     comment: {
@@ -690,5 +691,96 @@ describe('ticket routes', () => {
         details: JSON.stringify({ from: 'agent-2', to: null }),
       },
     })
+  })
+
+  it('lets an agent claim an unassigned open ticket and audits the claim', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: agent })
+    const transaction = {
+      ticket: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'ticket-1',
+          status: 'open',
+          assignee: { id: agent.id, name: 'Agent' },
+        }),
+      },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/claim`, {
+      method: 'POST',
+      headers: { cookie: `${SESSION_COOKIE_NAME}=agent-token` },
+    })
+
+    expect(response.status).toBe(200)
+    expect(transaction.ticket.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'ticket-1',
+        assigneeId: null,
+        status: 'open',
+      },
+      data: { assigneeId: agent.id },
+    })
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        ticketId: 'ticket-1',
+        userId: agent.id,
+        action: 'ticket.claimed',
+        details: JSON.stringify({ from: null, to: agent.id }),
+      },
+    })
+  })
+
+  it('prevents customers from claiming tickets', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: customer })
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/claim`, {
+      method: 'POST',
+      headers: { cookie: `${SESSION_COOKIE_NAME}=customer-token` },
+    })
+
+    expect(response.status).toBe(403)
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('returns a conflict when an open ticket has already been claimed', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: agent })
+    const transaction = {
+      ticket: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        findFirst: vi.fn().mockResolvedValue({ id: 'ticket-1' }),
+      },
+      auditLog: { create: vi.fn() },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/claim`, {
+      method: 'POST',
+      headers: { cookie: `${SESSION_COOKIE_NAME}=agent-token` },
+    })
+
+    expect(response.status).toBe(409)
+    expect(transaction.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('returns not found when claiming a nonexistent ticket', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: agent })
+    const transaction = {
+      ticket: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+      auditLog: { create: vi.fn() },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
+
+    const response = await fetch(`${baseUrl}/api/tickets/missing-ticket/claim`, {
+      method: 'POST',
+      headers: { cookie: `${SESSION_COOKIE_NAME}=agent-token` },
+    })
+
+    expect(response.status).toBe(404)
+    expect(transaction.auditLog.create).not.toHaveBeenCalled()
   })
 })
