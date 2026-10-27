@@ -119,3 +119,5 @@ All authenticated routes use the `mela_desk_session` HttpOnly cookie issued by `
 | `GET` | `/api/health` | Public; reports API/database health |
 
 Customer ticket responses omit internal comments. Ticket status, assignment, account status, creation, and comment changes are recorded in the audit log.
+
+API errors use JSON responses with `success: false` and a safe message. Malformed JSON returns `400`, oversized request bodies return `413`, unknown routes return `404`, and unexpected server errors return a generic `500` message.

@@ -1,12 +1,8 @@
 import type { ErrorRequestHandler } from 'express'
 
-export const jsonBodyErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
-  if (typeof error !== 'object' || error === null || !('type' in error)) {
-    next(error)
-    return
-  }
-
-  const errorType = error.type
+export const apiErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
+  const errorType =
+    typeof error === 'object' && error !== null && 'type' in error ? error.type : undefined
 
   if (errorType === 'entity.parse.failed') {
     res.status(400).json({
@@ -24,5 +20,14 @@ export const jsonBodyErrorHandler: ErrorRequestHandler = (error, _req, res, next
     return
   }
 
-  next(error)
+  if (res.headersSent) {
+    next(error)
+    return
+  }
+
+  console.error('Unhandled API error:', error)
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+  })
 }
