@@ -14,6 +14,10 @@ const { prismaMock, argon2Mock } = vi.hoisted(() => ({
       findFirst: vi.fn(),
       deleteMany: vi.fn(),
     },
+    auditLog: {
+      create: vi.fn(),
+    },
+    $transaction: vi.fn(),
     $queryRaw: vi.fn(),
   },
   argon2Mock: {
@@ -229,6 +233,121 @@ describe('authentication routes', () => {
     expect(await response.json()).toEqual({
       success: true,
       message: 'Logged out successfully',
+    })
+  })
+
+  it('requires an authenticated session to change a password', async () => {
+    const response = await fetch(`${baseUrl}/api/auth/change-password`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        currentPassword: 'old password',
+        newPassword: 'a-new-secure-password',
+      }),
+    })
+
+    expect(response.status).toBe(401)
+    expect(prismaMock.user.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid password changes before querying the user', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({
+      user: { id: testUser.id, role: testUser.role },
+    })
+
+    const response = await fetch(`${baseUrl}/api/auth/change-password`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=session-token`,
+      },
+      body: JSON.stringify({
+        currentPassword: 'same-password-123',
+        newPassword: 'same-password-123',
+      }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(prismaMock.user.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('does not change the password when the current password is incorrect', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({
+      user: { id: testUser.id, role: testUser.role },
+    })
+    prismaMock.user.findUnique.mockResolvedValue({
+      passwordHash: 'stored-hash',
+      isActive: true,
+    })
+    argon2Mock.verify.mockResolvedValue(false)
+
+    const response = await fetch(`${baseUrl}/api/auth/change-password`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=session-token`,
+      },
+      body: JSON.stringify({
+        currentPassword: 'wrong-current-password',
+        newPassword: 'a-new-secure-password',
+      }),
+    })
+
+    expect(response.status).toBe(401)
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('changes the password, revokes all sessions, and clears the session cookie', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({
+      user: { id: testUser.id, role: testUser.role },
+    })
+    prismaMock.user.findUnique.mockResolvedValue({
+      passwordHash: 'stored-hash',
+      isActive: true,
+    })
+    argon2Mock.verify.mockResolvedValue(true)
+    argon2Mock.hash.mockResolvedValue('new-argon2id-hash')
+
+    const transaction = {
+      user: { update: vi.fn().mockResolvedValue({}) },
+      session: { deleteMany: vi.fn().mockResolvedValue({ count: 2 }) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
+
+    const response = await fetch(`${baseUrl}/api/auth/change-password`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=session-token`,
+      },
+      body: JSON.stringify({
+        currentPassword: 'current-secure-password',
+        newPassword: 'a-new-secure-password',
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(argon2Mock.hash).toHaveBeenCalledWith('a-new-secure-password', {
+      type: argon2Mock.argon2id,
+    })
+    expect(transaction.user.update).toHaveBeenCalledWith({
+      where: { id: testUser.id },
+      data: { passwordHash: 'new-argon2id-hash' },
+    })
+    expect(transaction.session.deleteMany).toHaveBeenCalledWith({
+      where: { userId: testUser.id },
+    })
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: testUser.id,
+        action: 'user.password_changed',
+      },
+    })
+    expect(response.headers.get('set-cookie')).toContain(`${SESSION_COOKIE_NAME}=`)
+    expect(await response.json()).toEqual({
+      success: true,
+      message: 'Password changed. Please log in again.',
     })
   })
 })

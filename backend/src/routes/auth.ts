@@ -3,6 +3,7 @@ import argon2 from 'argon2'
 import { Router } from 'express'
 import { z } from 'zod'
 import { prisma } from '../lib/prisma.js'
+import { authenticate } from '../middleware/authenticate.js'
 import {
   clearSessionCookie,
   createSessionToken,
@@ -30,6 +31,16 @@ const loginSchema = z.object({
   email: z.string().trim().email().max(255).transform((email) => email.toLowerCase()),
   password: z.string().min(12).max(128),
 })
+
+const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1).max(128),
+    newPassword: z.string().min(12).max(128),
+  })
+  .refine(({ currentPassword, newPassword }) => currentPassword !== newPassword, {
+    path: ['newPassword'],
+    message: 'New password must be different from the current password',
+  })
 
 const authRouter = Router()
 
@@ -187,6 +198,73 @@ authRouter.get('/me', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Unable to verify session',
+    })
+  }
+})
+
+authRouter.post('/change-password', authenticate, async (req, res) => {
+  const parsed = changePasswordSchema.safeParse(req.body)
+
+  if (!parsed.success) {
+    res.status(400).json({
+      success: false,
+      message: 'Invalid password change details',
+      errors: parsed.error.issues.map(({ path, message }) => ({
+        field: path.join('.'),
+        message,
+      })),
+    })
+    return
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { passwordHash: true, isActive: true },
+    })
+
+    if (
+      !user ||
+      !user.isActive ||
+      !(await argon2.verify(user.passwordHash, parsed.data.currentPassword))
+    ) {
+      res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect',
+      })
+      return
+    }
+
+    const passwordHash = await argon2.hash(parsed.data.newPassword, {
+      type: argon2.argon2id,
+    })
+
+    await prisma.$transaction(async (transaction) => {
+      await transaction.user.update({
+        where: { id: req.user!.id },
+        data: { passwordHash },
+      })
+      await transaction.session.deleteMany({
+        where: { userId: req.user!.id },
+      })
+      await transaction.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: 'user.password_changed',
+        },
+      })
+    })
+
+    clearSessionCookie(res)
+    res.status(200).json({
+      success: true,
+      message: 'Password changed. Please log in again.',
+    })
+  } catch (error) {
+    console.error('Password change failed:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Unable to change password',
     })
   }
 })
