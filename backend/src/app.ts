@@ -1,6 +1,5 @@
 import express from 'express'
 import cors from 'cors'
-import { prisma } from './lib/prisma.js'
 
 const app = express()
 
@@ -14,27 +13,11 @@ app.get('/', (_req, res) => {
   })
 })
 
-app.get('/api/health', async (_req, res) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`
-
-    res.status(200).json({
-      success: true,
-      message: 'Mela Desk API is healthy',
-      dependencies: {
-        database: 'connected',
-      },
-    })
-  } catch (error) {
-    console.error('Mela Desk database health check failed:', error)
-    res.status(503).json({
-      success: false,
-      message: 'Mela Desk API database is unavailable',
-      dependencies: {
-        database: 'disconnected',
-      },
-    })
-  }
+app.get('/api/health', (_req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Mela Desk API is healthy',
+  })
 })
 
 export default app
