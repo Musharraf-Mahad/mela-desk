@@ -77,14 +77,14 @@ cp .env.example .env
 
 In `backend/.env`, set `DATABASE_URL` to your MySQL connection string, `PORT` to the API port, and `FRONTEND_ORIGINS` to a comma-separated list of trusted frontend origins. For local Vite development, the default frontend origin is `http://localhost:5173`.
 
-For a fresh, disposable development database, create the schema from the Prisma models and generate the client:
+For a fresh development database, apply the checked-in migrations and generate the client:
 
 ```bash
-npm run db:push
+npm run db:migrate
 npm run db:generate
 ```
 
-Do not use `db:push` on a shared or production database. Review and apply database changes using migrations in those environments.
+For deployment, apply migrations with `npm run db:deploy`. Use `npm run db:migrate` only in development to create migrations. Avoid `db:push` on shared or production databases. If a database was already initialized using `db:push`, reconcile its migration history before using `db:deploy`; do not run the initial migration against tables that already exist.
 
 Run the API, tests, and TypeScript build from the `backend` directory:
 
