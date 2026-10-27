@@ -24,6 +24,10 @@ const createCommentSchema = z.object({
   isInternal: z.boolean().optional(),
 })
 
+const updateTicketStatusSchema = z.object({
+  status: z.nativeEnum(TicketStatus),
+})
+
 const ticketSelect = {
   id: true,
   subject: true,
@@ -216,6 +220,84 @@ ticketsRouter.get('/:ticketId', authenticate, async (req, res) => {
     })
   }
 })
+
+ticketsRouter.patch(
+  '/:ticketId/status',
+  authenticate,
+  requireRole(UserRole.agent, UserRole.admin),
+  async (req, res) => {
+    const ticketId = req.params.ticketId
+
+    if (typeof ticketId !== 'string') {
+      res.status(400).json({ success: false, message: 'Invalid ticket ID' })
+      return
+    }
+
+    const parsed = updateTicketStatusSchema.safeParse(req.body)
+
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid ticket status',
+        errors: parsed.error.issues.map(({ path, message }) => ({
+          field: path.join('.'),
+          message,
+        })),
+      })
+      return
+    }
+
+    try {
+      const ticket = await prisma.$transaction(async (transaction) => {
+        const existingTicket = await transaction.ticket.findFirst({
+          where: {
+            id: ticketId,
+            ...(req.user!.role === UserRole.agent ? { assigneeId: req.user!.id } : {}),
+          },
+          select: { id: true, status: true },
+        })
+
+        if (!existingTicket) return null
+
+        const updatedTicket = await transaction.ticket.update({
+          where: { id: existingTicket.id },
+          data: { status: parsed.data.status },
+          select: ticketSelect,
+        })
+
+        await transaction.auditLog.create({
+          data: {
+            ticketId: existingTicket.id,
+            userId: req.user!.id,
+            action: 'ticket.status_changed',
+            details: JSON.stringify({
+              from: existingTicket.status,
+              to: parsed.data.status,
+            }),
+          },
+        })
+
+        return updatedTicket
+      })
+
+      if (!ticket) {
+        res.status(404).json({ success: false, message: 'Ticket not found' })
+        return
+      }
+
+      res.status(200).json({
+        success: true,
+        data: { ticket },
+      })
+    } catch (error) {
+      console.error('Ticket status update failed:', error)
+      res.status(500).json({
+        success: false,
+        message: 'Unable to update ticket status',
+      })
+    }
+  },
+)
 
 ticketsRouter.post('/:ticketId/comments', authenticate, async (req, res) => {
   const ticketId = req.params.ticketId

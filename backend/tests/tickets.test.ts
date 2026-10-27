@@ -12,9 +12,13 @@ const { prismaMock } = vi.hoisted(() => ({
       create: vi.fn(),
       findFirst: vi.fn(),
       findMany: vi.fn(),
+      update: vi.fn(),
       count: vi.fn(),
     },
     comment: {
+      create: vi.fn(),
+    },
+    auditLog: {
       create: vi.fn(),
     },
     $transaction: vi.fn(),
@@ -392,5 +396,139 @@ describe('ticket routes', () => {
         }),
       }),
     )
+  })
+
+  it('prevents customers from changing ticket status', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: customer })
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/status`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=customer-token`,
+      },
+      body: JSON.stringify({ status: 'resolved' }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('validates ticket statuses before performing a transaction', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: agent })
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/status`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=agent-token`,
+      },
+      body: JSON.stringify({ status: 'waiting' }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('updates status and records an audit log for an assigned agent', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: agent })
+    const transaction = {
+      ticket: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'ticket-1', status: 'open' }),
+        update: vi.fn().mockResolvedValue({
+          id: 'ticket-1',
+          status: 'in_progress',
+        }),
+      },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/status`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=agent-token`,
+      },
+      body: JSON.stringify({ status: 'in_progress' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(transaction.ticket.findFirst).toHaveBeenCalledWith({
+      where: { id: 'ticket-1', assigneeId: agent.id },
+      select: { id: true, status: true },
+    })
+    expect(transaction.ticket.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'ticket-1' },
+        data: { status: 'in_progress' },
+      }),
+    )
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        ticketId: 'ticket-1',
+        userId: agent.id,
+        action: 'ticket.status_changed',
+        details: JSON.stringify({ from: 'open', to: 'in_progress' }),
+      },
+    })
+    expect(await response.json()).toEqual({
+      success: true,
+      data: { ticket: expect.objectContaining({ status: 'in_progress' }) },
+    })
+  })
+
+  it('does not let an agent update a ticket assigned to someone else', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: agent })
+    const transaction = {
+      ticket: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        update: vi.fn(),
+      },
+      auditLog: { create: vi.fn() },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/status`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=agent-token`,
+      },
+      body: JSON.stringify({ status: 'resolved' }),
+    })
+
+    expect(response.status).toBe(404)
+    expect(transaction.ticket.update).not.toHaveBeenCalled()
+    expect(transaction.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('allows admins to update any ticket and audit the change', async () => {
+    const admin = { id: 'admin-1', role: 'admin' }
+    prismaMock.session.findFirst.mockResolvedValue({ user: admin })
+    const transaction = {
+      ticket: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'ticket-1', status: 'open' }),
+        update: vi.fn().mockResolvedValue({ id: 'ticket-1', status: 'closed' }),
+      },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
+
+    const response = await fetch(`${baseUrl}/api/tickets/ticket-1/status`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=admin-token`,
+      },
+      body: JSON.stringify({ status: 'closed' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(transaction.ticket.findFirst).toHaveBeenCalledWith({
+      where: { id: 'ticket-1' },
+      select: { id: true, status: true },
+    })
+    expect(transaction.auditLog.create).toHaveBeenCalled()
   })
 })
