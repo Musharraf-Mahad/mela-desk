@@ -41,6 +41,9 @@ describe('ticket routes', () => {
 
   beforeEach(async () => {
     vi.resetAllMocks()
+    prismaMock.$transaction.mockImplementation(async (operation) =>
+      typeof operation === 'function' ? operation(prismaMock) : Promise.all(operation),
+    )
     server = app.listen(0)
     await once(server, 'listening')
     const address = server.address() as AddressInfo
@@ -132,6 +135,14 @@ describe('ticket routes', () => {
         },
       }),
     )
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        ticketId: 'ticket-1',
+        userId: customer.id,
+        action: 'ticket.created',
+        details: JSON.stringify({ category: 'technical', priority: 'high' }),
+      },
+    })
     expect(await response.json()).toEqual({
       success: true,
       data: { ticket: expect.objectContaining({ id: 'ticket-1' }) },
@@ -361,6 +372,14 @@ describe('ticket routes', () => {
         },
       }),
     )
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        ticketId: 'ticket-1',
+        userId: customer.id,
+        action: 'ticket.comment_added',
+        details: JSON.stringify({ commentId: 'comment-1' }),
+      },
+    })
     expect(payload.data.comment).not.toHaveProperty('isInternal')
   })
 
@@ -397,6 +416,14 @@ describe('ticket routes', () => {
         }),
       }),
     )
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        ticketId: 'ticket-1',
+        userId: agent.id,
+        action: 'ticket.internal_comment_added',
+        details: JSON.stringify({ commentId: 'comment-2' }),
+      },
+    })
   })
 
   it('prevents customers from changing ticket status', async () => {

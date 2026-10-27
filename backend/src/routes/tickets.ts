@@ -90,12 +90,28 @@ ticketsRouter.post(
     }
 
     try {
-      const ticket = await prisma.ticket.create({
-        data: {
-          ...parsed.data,
-          customerId: req.user!.id,
-        },
-        select: ticketSelect,
+      const ticket = await prisma.$transaction(async (transaction) => {
+        const createdTicket = await transaction.ticket.create({
+          data: {
+            ...parsed.data,
+            customerId: req.user!.id,
+          },
+          select: ticketSelect,
+        })
+
+        await transaction.auditLog.create({
+          data: {
+            ticketId: createdTicket.id,
+            userId: req.user!.id,
+            action: 'ticket.created',
+            details: JSON.stringify({
+              category: parsed.data.category,
+              priority: parsed.data.priority,
+            }),
+          },
+        })
+
+        return createdTicket
       })
 
       res.status(201).json({
@@ -529,14 +545,30 @@ ticketsRouter.post('/:ticketId/comments', authenticate, async (req, res) => {
       return
     }
 
-    const comment = await prisma.comment.create({
-      data: {
-        ticketId: ticket.id,
-        authorId: req.user!.id,
-        body: parsed.data.body,
-        isInternal: req.user!.role === UserRole.customer ? false : parsed.data.isInternal ?? false,
-      },
-      select: commentSelect,
+    const comment = await prisma.$transaction(async (transaction) => {
+      const createdComment = await transaction.comment.create({
+        data: {
+          ticketId: ticket.id,
+          authorId: req.user!.id,
+          body: parsed.data.body,
+          isInternal:
+            req.user!.role === UserRole.customer ? false : parsed.data.isInternal ?? false,
+        },
+        select: commentSelect,
+      })
+
+      await transaction.auditLog.create({
+        data: {
+          ticketId: ticket.id,
+          userId: req.user!.id,
+          action: createdComment.isInternal
+            ? 'ticket.internal_comment_added'
+            : 'ticket.comment_added',
+          details: JSON.stringify({ commentId: createdComment.id }),
+        },
+      })
+
+      return createdComment
     })
 
     const safeComment =
