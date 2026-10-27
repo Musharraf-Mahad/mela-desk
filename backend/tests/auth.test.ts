@@ -205,6 +205,108 @@ describe('authentication routes', () => {
     })
   })
 
+  it('requires an authenticated session to update the profile', async () => {
+    const response = await fetch(`${baseUrl}/api/auth/profile`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Updated Name' }),
+    })
+
+    expect(response.status).toBe(401)
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid profile names before updating the user', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({
+      user: { id: testUser.id, role: testUser.role },
+    })
+
+    const response = await fetch(`${baseUrl}/api/auth/profile`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=session-token`,
+      },
+      body: JSON.stringify({ name: '   ' }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('updates the display name and records an audit event atomically', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({
+      user: { id: testUser.id, role: testUser.role },
+    })
+    const updatedUser = { ...testUser, name: 'Updated Customer' }
+    const transaction = {
+      user: { update: vi.fn().mockResolvedValue(updatedUser) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
+
+    const response = await fetch(`${baseUrl}/api/auth/profile`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=session-token`,
+      },
+      body: JSON.stringify({ name: ' Updated Customer ' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(transaction.user.update).toHaveBeenCalledWith({
+      where: { id: testUser.id },
+      data: { name: 'Updated Customer' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      },
+    })
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: testUser.id,
+        action: 'user.profile_updated',
+      },
+    })
+    expect(await response.json()).toEqual({
+      success: true,
+      data: {
+        user: {
+          ...updatedUser,
+          createdAt: testUser.createdAt.toISOString(),
+        },
+      },
+    })
+  })
+
+  it('reports profile update failures without returning success', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({
+      user: { id: testUser.id, role: testUser.role },
+    })
+    prismaMock.$transaction.mockRejectedValue(new Error('database unavailable'))
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    const response = await fetch(`${baseUrl}/api/auth/profile`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=session-token`,
+      },
+      body: JSON.stringify({ name: 'Updated Customer' }),
+    })
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({
+      success: false,
+      message: 'Unable to update profile',
+    })
+    expect(errorSpy).toHaveBeenCalledWith('Profile update failed:', expect.any(Error))
+  })
+
   it('clears the cookie when a session is expired or revoked', async () => {
     prismaMock.session.findFirst.mockResolvedValue(null)
 

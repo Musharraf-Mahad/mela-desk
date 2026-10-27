@@ -42,6 +42,10 @@ const changePasswordSchema = z
     message: 'New password must be different from the current password',
   })
 
+const updateProfileSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+})
+
 const authRouter = Router()
 
 authRouter.post('/register', async (req, res) => {
@@ -198,6 +202,52 @@ authRouter.get('/me', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Unable to verify session',
+    })
+  }
+})
+
+authRouter.patch('/profile', authenticate, async (req, res) => {
+  const parsed = updateProfileSchema.safeParse(req.body)
+
+  if (!parsed.success) {
+    res.status(400).json({
+      success: false,
+      message: 'Invalid profile details',
+      errors: parsed.error.issues.map(({ path, message }) => ({
+        field: path.join('.'),
+        message,
+      })),
+    })
+    return
+  }
+
+  try {
+    const user = await prisma.$transaction(async (transaction) => {
+      const updatedUser = await transaction.user.update({
+        where: { id: req.user!.id },
+        data: { name: parsed.data.name },
+        select: publicUserSelect,
+      })
+
+      await transaction.auditLog.create({
+        data: {
+          userId: req.user!.id,
+          action: 'user.profile_updated',
+        },
+      })
+
+      return updatedUser
+    })
+
+    res.status(200).json({
+      success: true,
+      data: { user },
+    })
+  } catch (error) {
+    console.error('Profile update failed:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Unable to update profile',
     })
   }
 })
