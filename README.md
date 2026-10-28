@@ -124,6 +124,8 @@ The command hashes the password with Argon2id, records an audit event, and refus
 
 ### Current API routes
 
+For detailed request/response conventions, role permissions, assignment examples, and database migration coordination, see [the backend integration contract](./docs/backend-integration-contract.md).
+
 All authenticated routes use the `mela_desk_session` HttpOnly cookie issued by `POST /api/auth/login`.
 
 | Method | Route | Access |
