@@ -23,7 +23,6 @@ model User {
   sessions       Session[]
 
   @@map("users")
-  @@index([email])
 }
 
 model Session {
