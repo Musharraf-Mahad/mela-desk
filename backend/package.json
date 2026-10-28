@@ -8,6 +8,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "test": "vitest run",
+    "db:smoke": "tsx scripts/db-smoke.ts",
+    "db:create-admin": "tsx scripts/create-admin.ts",
     "start": "node dist/server.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

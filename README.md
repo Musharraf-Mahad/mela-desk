@@ -94,7 +94,37 @@ npm test
 npm run build
 ```
 
+After configuring MySQL and applying migrations, verify real database-backed API workflows with:
+
+```bash
+npm run db:smoke
+```
+
+This creates a uniquely named temporary customer and ticket, exercises registration, login, profile, ticket, comment, and logout flows against MySQL, and removes the test records afterward. It does not modify existing users or tickets.
+
+Public registration only creates customer accounts. To create the initial admin in Windows PowerShell, run this from the repository's `backend` directory. The password prompt is hidden; choose a password between 12 and 128 characters.
+
+```powershell
+$env:BOOTSTRAP_ADMIN_NAME = Read-Host "Admin name"
+$env:BOOTSTRAP_ADMIN_EMAIL = Read-Host "Admin email"
+$securePassword = Read-Host "Admin password" -AsSecureString
+$passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+try {
+  $env:BOOTSTRAP_ADMIN_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+  npm.cmd run db:create-admin
+} finally {
+  Remove-Item Env:BOOTSTRAP_ADMIN_NAME -ErrorAction SilentlyContinue
+  Remove-Item Env:BOOTSTRAP_ADMIN_EMAIL -ErrorAction SilentlyContinue
+  Remove-Item Env:BOOTSTRAP_ADMIN_PASSWORD -ErrorAction SilentlyContinue
+  [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
+}
+```
+
+The command hashes the password with Argon2id, records an audit event, and refuses to create another admin once any admin account exists. Never commit the credentials or share the password.
+
 ### Current API routes
+
+For detailed request/response conventions, role permissions, assignment examples, and database migration coordination, see [the backend integration contract](./docs/backend-integration-contract.md).
 
 All authenticated routes use the `mela_desk_session` HttpOnly cookie issued by `POST /api/auth/login`.
 
@@ -114,6 +144,8 @@ All authenticated routes use the `mela_desk_session` HttpOnly cookie issued by `
 | `PATCH` | `/api/tickets/:ticketId/status` | Assigned agent or admin |
 | `PATCH` | `/api/tickets/:ticketId/assignee` | Admin |
 | `POST` | `/api/tickets/:ticketId/claim` | Agent; open unassigned tickets only |
+| `POST` | `/api/users/agents` | Admin; creates an active agent account |
+| `PATCH` | `/api/users/agents/:agentId/password` | Admin; resets agent password and revokes sessions |
 | `GET` | `/api/users/agents` | Admin |
 | `PATCH` | `/api/users/:userId/status` | Admin |
 | `GET` | `/api/audit-logs` | Admin; filterable by ticket, user, and action |

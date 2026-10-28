@@ -1,3 +1,4 @@
+import argon2 from 'argon2'
 import { Prisma, UserRole } from '@prisma/client'
 import { Router } from 'express'
 import { z } from 'zod'
@@ -13,7 +14,165 @@ const updateUserStatusSchema = z.object({
   isActive: z.boolean(),
 })
 
+const createAgentSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  email: z.string().trim().email().max(255).transform((email) => email.toLowerCase()),
+  password: z.string().min(12).max(128),
+})
+
+const resetAgentPasswordSchema = z.object({
+  password: z.string().min(12).max(128),
+})
+
 const usersRouter = Router()
+
+usersRouter.post(
+  '/agents',
+  authenticate,
+  requireRole(UserRole.admin),
+  async (req, res) => {
+    const parsed = createAgentSchema.safeParse(req.body)
+
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid agent details',
+        errors: parsed.error.issues.map(({ path, message }) => ({
+          field: path.join('.'),
+          message,
+        })),
+      })
+      return
+    }
+
+    try {
+      const passwordHash = await argon2.hash(parsed.data.password, {
+        type: argon2.argon2id,
+      })
+      const agent = await prisma.$transaction(async (transaction) => {
+        const createdAgent = await transaction.user.create({
+          data: {
+            name: parsed.data.name,
+            email: parsed.data.email,
+            passwordHash,
+            role: UserRole.agent,
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isActive: true,
+          },
+        })
+
+        await transaction.auditLog.create({
+          data: {
+            userId: req.user!.id,
+            action: 'user.agent_created',
+            details: JSON.stringify({ agentId: createdAgent.id }),
+          },
+        })
+
+        return createdAgent
+      })
+
+      res.status(201).json({
+        success: true,
+        data: { agent },
+      })
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        res.status(409).json({
+          success: false,
+          message: 'An account with this email already exists',
+        })
+        return
+      }
+
+      console.error('Agent creation failed:', error)
+      res.status(500).json({
+        success: false,
+        message: 'Unable to create agent',
+      })
+    }
+  },
+)
+
+usersRouter.patch(
+  '/agents/:agentId/password',
+  authenticate,
+  requireRole(UserRole.admin),
+  async (req, res) => {
+    const agentId = req.params.agentId
+
+    if (typeof agentId !== 'string') {
+      res.status(400).json({ success: false, message: 'Invalid agent ID' })
+      return
+    }
+
+    const parsed = resetAgentPasswordSchema.safeParse(req.body)
+
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid password reset details',
+        errors: parsed.error.issues.map(({ path, message }) => ({
+          field: path.join('.'),
+          message,
+        })),
+      })
+      return
+    }
+
+    try {
+      const passwordHash = await argon2.hash(parsed.data.password, {
+        type: argon2.argon2id,
+      })
+      const result = await prisma.$transaction(async (transaction) => {
+        const existingAgent = await transaction.user.findFirst({
+          where: { id: agentId, role: UserRole.agent },
+          select: { id: true },
+        })
+
+        if (!existingAgent) return { kind: 'not_found' as const }
+
+        await transaction.user.update({
+          where: { id: existingAgent.id },
+          data: { passwordHash },
+        })
+        await transaction.session.deleteMany({
+          where: { userId: existingAgent.id },
+        })
+        await transaction.auditLog.create({
+          data: {
+            userId: req.user!.id,
+            action: 'user.agent_password_reset',
+            details: JSON.stringify({ agentId: existingAgent.id }),
+          },
+        })
+
+        return { kind: 'reset' as const }
+      })
+
+      if (result.kind === 'not_found') {
+        res.status(404).json({ success: false, message: 'Agent not found' })
+        return
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Agent password reset; existing sessions were revoked',
+      })
+    } catch (error) {
+      console.error('Agent password reset failed:', error)
+      res.status(500).json({
+        success: false,
+        message: 'Unable to reset agent password',
+      })
+    }
+  },
+)
 
 usersRouter.get(
   '/agents',
