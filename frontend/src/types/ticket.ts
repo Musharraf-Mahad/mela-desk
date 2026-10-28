@@ -1,40 +1,35 @@
-import type { User } from './auth';
+import type { PaginationMeta } from './api';
 
-/**
- * Ticket status matching backend Prisma schema:
- * open | in_progress | pending | resolved | closed
- */
 export type TicketStatus = 'open' | 'in_progress' | 'pending' | 'resolved' | 'closed';
 
-/**
- * Ticket priority matching backend Prisma schema:
- * low | normal | high | urgent
- */
 export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
 
-/**
- * Ticket category matching backend Prisma schema:
- * billing | account | technical | orders | general
- */
 export type TicketCategory = 'billing' | 'account' | 'technical' | 'orders' | 'general';
+
+export interface TicketAuthor {
+  id: string;
+  name: string;
+  role?: string;
+  email?: string;
+}
 
 export interface Comment {
   id: string;
-  ticketId: string;
-  authorId: string;
-  author?: Pick<User, 'id' | 'name' | 'role'>;
+  ticketId?: string;
+  authorId?: string;
+  author?: TicketAuthor;
   body: string;
-  isInternal: boolean;
+  isInternal?: boolean;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 export interface Ticket {
   id: string;
-  customerId: string;
+  customerId?: string;
   assigneeId?: string | null;
-  customer?: Pick<User, 'id' | 'name' | 'email'>;
-  assignee?: Pick<User, 'id' | 'name' | 'email'> | null;
+  customer?: TicketAuthor;
+  assignee?: TicketAuthor | null;
   subject: string;
   description: string;
   category: TicketCategory;
@@ -49,7 +44,7 @@ export interface AuditLog {
   id: string;
   ticketId?: string | null;
   userId?: string | null;
-  user?: Pick<User, 'id' | 'name' | 'role'> | null;
+  user?: TicketAuthor | null;
   action: string;
   details?: string | null;
   createdAt: string;
@@ -61,5 +56,17 @@ export interface TicketFilterParams {
   priority?: TicketPriority | 'all';
   category?: TicketCategory | 'all';
   page?: number;
-  limit?: number;
+  pageSize?: number;
+}
+
+export interface CreateTicketPayload {
+  subject: string;
+  description: string;
+  category: TicketCategory;
+  priority: TicketPriority;
+}
+
+export interface PaginatedTickets {
+  tickets: Ticket[];
+  pagination: PaginationMeta;
 }

@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Button } from '../../components/common/Button';
-import { Input } from '../../components/common/Input';
 import {
   TableContainer,
   Table,
@@ -12,63 +11,100 @@ import {
 } from '../../components/common/Table';
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
-import { MOCK_CATEGORIES } from '../../mocks/mockData';
-import { Plus } from 'lucide-react';
+import { Alert } from '../../components/common/Alert';
+import { Plus, ShieldAlert } from 'lucide-react';
+
+interface SystemCategory {
+  key: string;
+  name: string;
+  description: string;
+  status: 'Active';
+}
+
+const SUPPORTED_CATEGORIES: SystemCategory[] = [
+  {
+    key: 'billing',
+    name: 'Billing & Payments',
+    description: 'Invoicing, payment processing, charge disputes, and subscription queries',
+    status: 'Active',
+  },
+  {
+    key: 'account',
+    name: 'Account Access',
+    description: 'Authentication issues, password resets, login lockouts, and permissions',
+    status: 'Active',
+  },
+  {
+    key: 'technical',
+    name: 'Technical Issue',
+    description: 'Software defects, API errors, system crashes, and platform bugs',
+    status: 'Active',
+  },
+  {
+    key: 'orders',
+    name: 'Orders & Deliveries',
+    description: 'Order fulfillment status, package tracking, and shipment delays',
+    status: 'Active',
+  },
+  {
+    key: 'general',
+    name: 'General Inquiries',
+    description: 'General support requests and non-technical customer inquiries',
+    status: 'Active',
+  },
+];
 
 export function SystemSettingsPage() {
-  const [categories, setCategories] = useState(MOCK_CATEGORIES);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatDesc, setNewCatDesc] = useState('');
-
-  const handleAddCategory = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCatName.trim()) return;
-
-    setCategories((prev) => [
-      ...prev,
-      {
-        id: `cat-${Date.now()}`,
-        name: newCatName.trim(),
-        description: newCatDesc.trim() || 'Custom department tickets',
-        status: 'Enabled',
-      },
-    ]);
-
-    setNewCatName('');
-    setNewCatDesc('');
-    setIsAddModalOpen(false);
-  };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-[#0F172A]">Ticket categories</h3>
-        <Button
-          size="sm"
-          leftIcon={<Plus className="w-4 h-4" />}
-          onClick={() => setIsAddModalOpen(true)}
-        >
-          Add Category
-        </Button>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] tracking-tight">
+            System Settings & Categories
+          </h2>
+          <p className="text-sm text-[#64748B] mt-0.5">
+            View system-wide ticket categories, database constraints, and service configurations.
+          </p>
+        </div>
+        <div>
+          <Button
+            size="sm"
+            leftIcon={<Plus className="w-4 h-4" />}
+            onClick={() => setIsAddModalOpen(true)}
+          >
+            Add Category
+          </Button>
+        </div>
       </div>
+
+      <Alert type="info" title="Backend Configuration Constraint">
+        Ticket categories are governed by the database schema enum (<code>billing</code>,{' '}
+        <code>account</code>, <code>technical</code>, <code>orders</code>, <code>general</code>).
+        Dynamic runtime category mutation is not currently supported by the backend API.
+      </Alert>
 
       <TableContainer>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Category</TableHead>
+              <TableHead>Category Key</TableHead>
+              <TableHead>Display Name</TableHead>
               <TableHead>Description</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {categories.map((cat) => (
-              <TableRow key={cat.id}>
+            {SUPPORTED_CATEGORIES.map((cat) => (
+              <TableRow key={cat.key}>
+                <TableCell className="font-mono text-xs text-blue-700 font-semibold">
+                  {cat.key}
+                </TableCell>
                 <TableCell className="font-semibold text-[#0F172A]">
                   {cat.name}
                 </TableCell>
-                <TableCell className="text-slate-600">
+                <TableCell className="text-slate-600 text-xs">
                   {cat.description}
                 </TableCell>
                 <TableCell>
@@ -80,46 +116,31 @@ export function SystemSettingsPage() {
         </Table>
       </TableContainer>
 
-      {/* Add Category Modal */}
+      {/* Add Category Modal informing unsupported action */}
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         title="Add Ticket Category"
         footer={
-          <>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setIsAddModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" form="add-category-form">
-              Save Category
-            </Button>
-          </>
+          <Button type="button" onClick={() => setIsAddModalOpen(false)}>
+            Close
+          </Button>
         }
       >
-        <form
-          id="add-category-form"
-          onSubmit={handleAddCategory}
-          className="space-y-4"
-        >
-          <Input
-            label="Category Name"
-            placeholder="e.g. Hardware Support"
-            value={newCatName}
-            onChange={(e) => setNewCatName(e.target.value)}
-            required
-            autoFocus
-          />
-          <Input
-            label="Description"
-            placeholder="Brief explanation of when to select this category"
-            value={newCatDesc}
-            onChange={(e) => setNewCatDesc(e.target.value)}
-          />
-        </form>
+        <div className="space-y-3 py-2">
+          <div className="flex items-center gap-2 text-amber-600 font-medium text-sm">
+            <ShieldAlert className="w-5 h-5 shrink-0" />
+            <span>Operation not supported by backend</span>
+          </div>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            The backend API does not currently expose a persistent endpoint to register new ticket
+            categories. Ticket categories are constrained by the Prisma schema enum and MySQL database
+            definition.
+          </p>
+          <p className="text-xs text-slate-500">
+            To add new categories, contact the engineering team to coordinate a Prisma schema migration.
+          </p>
+        </div>
       </Modal>
     </div>
   );

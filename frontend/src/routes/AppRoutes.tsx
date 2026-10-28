@@ -35,9 +35,8 @@ import { TicketDetailsPage } from '../pages/shared/TicketDetailsPage';
 import { AccessDeniedPage } from '../pages/utility/AccessDeniedPage';
 import { NotFoundPage } from '../pages/utility/NotFoundPage';
 
-
 export function AppRoutes() {
-  const { isAuthenticated, role } = useAuth();
+  const { isAuthenticated, role, isLoading } = useAuth();
 
   // Root redirect helper based on authenticated role
   const getRootRedirect = () => {
@@ -47,6 +46,17 @@ export function AppRoutes() {
     return '/customer/dashboard';
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-slate-500 font-medium">Loading session...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Routes>
       {/* Root redirect */}
@@ -54,8 +64,14 @@ export function AppRoutes() {
 
       {/* Public Auth Routes */}
       <Route element={<AuthLayout />}>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/customer-registration" element={<CustomerRegistrationPage />} />
+        <Route
+          path="/login"
+          element={isAuthenticated ? <Navigate to={getRootRedirect()} replace /> : <LoginPage />}
+        />
+        <Route
+          path="/customer-registration"
+          element={isAuthenticated ? <Navigate to={getRootRedirect()} replace /> : <CustomerRegistrationPage />}
+        />
         <Route path="/register" element={<Navigate to="/customer-registration" replace />} />
       </Route>
 
@@ -94,7 +110,6 @@ export function AppRoutes() {
           <Route path="/support-dashboard" element={<Navigate to="/agent/dashboard" replace />} />
           <Route path="/support-queue" element={<Navigate to="/agent/queue" replace />} />
           <Route path="/assigned-tickets" element={<Navigate to="/agent/assigned" replace />} />
-          <Route path="/ticket-management-workspace" element={<Navigate to="/agent/tickets/MD-1048" replace />} />
           <Route path="/agent-profile-&-settings" element={<Navigate to="/agent/profile" replace />} />
         </Route>
 
@@ -117,9 +132,7 @@ export function AppRoutes() {
         {/* Shared Authenticated Routes */}
         <Route element={<ProtectedRoute />}>
           <Route path="/tickets/:id" element={<TicketDetailsPage />} />
-          <Route path="/ticket-details-&-conversation" element={<Navigate to="/tickets/MD-1048" replace />} />
         </Route>
-
       </Route>
 
       {/* Global 404 Fallback */}

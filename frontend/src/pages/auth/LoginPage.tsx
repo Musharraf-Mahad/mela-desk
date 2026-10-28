@@ -9,8 +9,8 @@ export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('amina@example.com');
-  const [password, setPassword] = useState('••••••••');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,24 +20,23 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
-      await login({ email, password });
-      if (email.toLowerCase().includes('admin')) {
+      const loggedInUser = await login({ email, password });
+      if (loggedInUser.role === 'admin') {
         navigate('/admin/dashboard');
-      } else if (email.toLowerCase().includes('agent') || email.toLowerCase().includes('abdi')) {
+      } else if (loggedInUser.role === 'agent') {
         navigate('/agent/dashboard');
       } else {
         navigate('/customer/dashboard');
       }
-    } catch {
-      setError('Invalid email or password. Please try again.');
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: string }).message)
+          : 'Invalid email or password. Please try again.';
+      setError(msg);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const setDemoAccount = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('password123');
   };
 
   return (
@@ -89,36 +88,6 @@ export function LoginPage() {
         >
           Create Account
         </Link>
-      </div>
-
-      {/* Quick Demo Logins for Student Team Testing */}
-      <div className="mt-8 pt-4 border-t border-[#E2E8F0]">
-        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-          Demo Accounts for Preview
-        </p>
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            type="button"
-            onClick={() => setDemoAccount('amina@example.com')}
-            className="px-2 py-1.5 text-xs bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg border border-[#E2E8F0] transition-colors cursor-pointer"
-          >
-            Customer
-          </button>
-          <button
-            type="button"
-            onClick={() => setDemoAccount('abdi@example.com')}
-            className="px-2 py-1.5 text-xs bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg border border-[#E2E8F0] transition-colors cursor-pointer"
-          >
-            Agent
-          </button>
-          <button
-            type="button"
-            onClick={() => setDemoAccount('omar@example.com')}
-            className="px-2 py-1.5 text-xs bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg border border-[#E2E8F0] transition-colors cursor-pointer"
-          >
-            Admin
-          </button>
-        </div>
       </div>
     </div>
   );

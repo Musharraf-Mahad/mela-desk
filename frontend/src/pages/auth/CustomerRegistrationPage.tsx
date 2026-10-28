@@ -23,8 +23,12 @@ export function CustomerRegistrationPage() {
     try {
       await register({ name, email, password });
       navigate('/customer/dashboard');
-    } catch {
-      setError('Registration failed. Please try again.');
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: string }).message)
+          : 'Registration failed. Please try again.';
+      setError(msg);
     } finally {
       setIsLoading(false);
     }
@@ -65,9 +69,10 @@ export function CustomerRegistrationPage() {
         <Input
           label="Password"
           type="password"
-          placeholder="••••••••"
+          placeholder="At least 12 characters"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          helperText="Must be between 12 and 128 characters."
           required
         />
 
