@@ -1,18 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Menu, Search, HelpCircle, User as UserIcon, LogOut, Check } from 'lucide-react';
+import { Menu, Search, HelpCircle, User as UserIcon, LogOut } from 'lucide-react';
 import { RoleBadge } from '../common/Badge';
 import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
-import type { UserRole } from '../../types/auth';
 
 interface TopNavProps {
   onToggleSidebar: () => void;
 }
 
 export function TopNav({ onToggleSidebar }: TopNavProps) {
-  const { user, role, logout, devSwitchRole } = useAuth();
+  const { user, role, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -52,20 +51,11 @@ export function TopNav({ onToggleSidebar }: TopNavProps) {
     if (pathname.includes('/admin/settings') || pathname === '/system-settings-&-categories') return 'System Settings & Categories';
     if (pathname.includes('/tickets/')) return 'Ticket Details & Conversation';
     return 'MelaDesk';
-
   };
 
-  const handleRoleChange = (newRole: UserRole) => {
-    devSwitchRole(newRole);
+  const handleLogout = async () => {
     setIsUserMenuOpen(false);
-    // Navigate to respective dashboard
-    if (newRole === 'customer') navigate('/customer/dashboard');
-    else if (newRole === 'agent') navigate('/agent/dashboard');
-    else if (newRole === 'admin') navigate('/admin/dashboard');
-  };
-
-  const handleLogout = () => {
-    logout();
+    await logout();
     navigate('/login');
   };
 
@@ -142,45 +132,6 @@ export function TopNav({ onToggleSidebar }: TopNavProps) {
                 <p className="text-xs font-semibold text-[#0F172A] truncate">{user?.name}</p>
                 <p className="text-[11px] text-slate-500 truncate mb-1.5">{user?.email}</p>
                 {role && <RoleBadge role={role} />}
-              </div>
-
-              {/* Dev Persona Switcher */}
-              <div className="px-3 py-2 border-b border-[#E2E8F0] bg-slate-50/60">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                  Local Dev Persona Preview
-                </p>
-                <div className="space-y-1">
-                  <button
-                    type="button"
-                    onClick={() => handleRoleChange('customer')}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs rounded-md transition-colors cursor-pointer ${
-                      role === 'customer' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-slate-600 hover:bg-white'
-                    }`}
-                  >
-                    <span>Customer (Amina)</span>
-                    {role === 'customer' && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRoleChange('agent')}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs rounded-md transition-colors cursor-pointer ${
-                      role === 'agent' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-slate-600 hover:bg-white'
-                    }`}
-                  >
-                    <span>Support Agent (Abdi)</span>
-                    {role === 'agent' && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRoleChange('admin')}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs rounded-md transition-colors cursor-pointer ${
-                      role === 'admin' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-slate-600 hover:bg-white'
-                    }`}
-                  >
-                    <span>Administrator (Omar)</span>
-                    {role === 'admin' && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
               </div>
 
               {/* Actions */}

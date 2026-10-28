@@ -8,7 +8,7 @@ const apiClient: AxiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000,
+  timeout: 15000,
 });
 
 apiClient.interceptors.request.use(
@@ -22,14 +22,16 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError<{ message?: string; error?: string }>) => {
+  (error: AxiosError<{ message?: string; error?: string; errors?: Array<{ field: string; message: string }> }>) => {
+    const data = error.response?.data;
     const customError: ApiError = {
       message:
-        error.response?.data?.message ||
-        error.response?.data?.error ||
+        data?.message ||
+        data?.error ||
         error.message ||
         'An unexpected error occurred. Please try again.',
       statusCode: error.response?.status,
+      errors: data?.errors,
     };
     return Promise.reject(customError);
   }

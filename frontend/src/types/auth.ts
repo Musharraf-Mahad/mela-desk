@@ -5,7 +5,7 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
-  isActive: boolean;
+  isActive?: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -21,8 +21,19 @@ export interface RegisterData {
   password: string;
 }
 
+export interface ChangePasswordData {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface UpdateProfileData {
+  name: string;
+}
+
 export interface AuthResponse {
   success: boolean;
   message?: string;
-  user?: User;
+  data?: {
+    user: User;
+  };
 }

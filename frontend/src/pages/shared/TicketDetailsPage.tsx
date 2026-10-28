@@ -1,48 +1,93 @@
-import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/common/Card';
 import { Textarea } from '../../components/common/Textarea';
 import { Button } from '../../components/common/Button';
 import { PriorityBadge, StatusBadge } from '../../components/common/Badge';
-import { MOCK_TICKETS, MOCK_COMMENTS } from '../../mocks/mockData';
-import { useAuth } from '../../context/AuthContext';
-import type { Comment } from '../../types/ticket';
+import { Alert } from '../../components/common/Alert';
+import { ticketApi } from '../../api/tickets.api';
+import type { Ticket } from '../../types/ticket';
 
 export function TicketDetailsPage() {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  const ticket = MOCK_TICKETS.find((t) => t.id === id) || MOCK_TICKETS[0];
-  const [comments, setComments] = useState<Comment[]>(MOCK_COMMENTS.filter((c) => !c.isInternal));
+  const [ticket, setTicket] = useState<Ticket | null>(null);
   const [replyText, setReplyText] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const handleSendReply = (e: React.FormEvent) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!id) return;
+    (async () => {
+      try {
+        const data = await ticketApi.getTicketById(id);
+        if (isMounted) {
+          setTicket(data);
+          setError(null);
+        }
+      } catch (err: unknown) {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Unable to retrieve ticket details');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [id, refreshTrigger]);
+
+  const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!replyText.trim()) return;
+    if (!id || !replyText.trim()) return;
 
     setIsSubmitting(true);
-    const newComment: Comment = {
-      id: `comm-${Date.now()}`,
-      ticketId: ticket.id,
-      authorId: user?.id || 'user-1',
-      author: {
-        id: user?.id || 'user-1',
-        name: user?.name || 'User',
-        role: user?.role || 'customer',
-      },
-      body: replyText.trim(),
-      isInternal: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    setError(null);
+    setSuccessMessage(null);
 
-    setTimeout(() => {
-      setComments((prev) => [...prev, newComment]);
+    try {
+      await ticketApi.addComment(id, replyText.trim(), false);
       setReplyText('');
+      setSuccessMessage('Reply posted successfully.');
+      setRefreshTrigger((r) => r + 1);
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to post reply');
+    } finally {
       setIsSubmitting(false);
-    }, 400);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="py-16 text-center text-slate-500">
+        <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        Loading ticket conversation...
+      </div>
+    );
+  }
+
+  if (error && !ticket) {
+    return (
+      <div className="space-y-4">
+        <Alert type="error">{error}</Alert>
+        <Button variant="secondary" onClick={() => navigate(-1)}>
+          Go Back
+        </Button>
+      </div>
+    );
+  }
+
+  if (!ticket) return null;
 
   return (
     <div className="space-y-6">
@@ -51,7 +96,13 @@ export function TicketDetailsPage() {
         <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] tracking-tight">
           #{ticket.id} · {ticket.subject}
         </h2>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Created on {new Date(ticket.createdAt).toLocaleDateString()}
+        </p>
       </div>
+
+      {error && <Alert type="error">{error}</Alert>}
+      {successMessage && <Alert type="success">{successMessage}</Alert>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left Column: Conversation */}
@@ -61,22 +112,42 @@ export function TicketDetailsPage() {
               <CardTitle>Conversation</CardTitle>
             </CardHeader>
             <CardContent>
+              {/* Original Ticket Description */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-[#0F172A]">
+                    {ticket.customer?.name || 'Customer'}
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    {new Date(ticket.createdAt).toLocaleString([], {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
+                  {ticket.description}
+                </p>
+              </div>
+
+              {/* Comments */}
               <div className="space-y-4">
-                {comments.map((comment) => {
-                  const isAgent = comment.author?.role === 'agent';
+                {ticket.comments?.map((comment) => {
+                  const isStaff = comment.author?.id !== ticket.customer?.id;
                   return (
                     <div
                       key={comment.id}
                       className={`p-4 rounded-xl border ${
-                        isAgent
+                        isStaff
                           ? 'bg-blue-50/50 border-blue-200/80 ml-4 sm:ml-8'
                           : 'bg-white border-[#E2E8F0] mr-4 sm:mr-8'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-xs font-semibold text-[#0F172A]">
-                          {comment.author?.role === 'agent' ? 'Agent' : 'Customer'} ·{' '}
-                          {comment.author?.name}
+                          {isStaff ? 'Support Staff' : 'You'} · {comment.author?.name}
                         </span>
                         <span className="text-[11px] text-slate-400">
                           {new Date(comment.createdAt).toLocaleTimeString([], {
@@ -104,7 +175,7 @@ export function TicketDetailsPage() {
                   required
                 />
                 <div>
-                  <Button type="submit" isLoading={isSubmitting}>
+                  <Button type="submit" isLoading={isSubmitting} disabled={isSubmitting}>
                     Send Reply
                   </Button>
                 </div>
@@ -113,42 +184,44 @@ export function TicketDetailsPage() {
           </Card>
         </div>
 
-        {/* Right Column: Ticket Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Ticket details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3.5 text-xs sm:text-sm">
-              <div>
-                <span className="text-slate-400 block text-xs">Customer</span>
-                <span className="font-semibold text-[#0F172A]">
-                  {ticket.customer?.name || 'Amina Yusuf'}
-                </span>
+        {/* Right Column: Ticket details */}
+        <div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Ticket details</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3.5 text-xs sm:text-sm">
+                <div>
+                  <span className="text-slate-400 block text-xs">Customer</span>
+                  <span className="font-semibold text-[#0F172A]">
+                    {ticket.customer?.name || 'You'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-xs">Category</span>
+                  <span className="font-medium text-slate-700 capitalize">
+                    {ticket.category}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-xs mb-1">Status</span>
+                  <StatusBadge status={ticket.status} />
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-xs mb-1">Priority</span>
+                  <PriorityBadge priority={ticket.priority} />
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-xs">Assignee</span>
+                  <span className="font-medium text-slate-700">
+                    {ticket.assignee?.name || 'Pending assignment'}
+                  </span>
+                </div>
               </div>
-              <div>
-                <span className="text-slate-400 block text-xs">Category</span>
-                <span className="font-medium text-slate-700 capitalize">
-                  {ticket.category}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-xs mb-1">Status</span>
-                <StatusBadge status={ticket.status} />
-              </div>
-              <div>
-                <span className="text-slate-400 block text-xs mb-1">Priority</span>
-                <PriorityBadge priority={ticket.priority} />
-              </div>
-              <div>
-                <span className="text-slate-400 block text-xs">Assignee</span>
-                <span className="font-medium text-slate-700">
-                  {ticket.assignee?.name || 'Abdi Ali'}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
