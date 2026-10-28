@@ -77,6 +77,8 @@ cp .env.example .env
 
 In `backend/.env`, set `DATABASE_URL` to your MySQL connection string, `PORT` to the API port, and `FRONTEND_ORIGINS` to a comma-separated list of trusted frontend origins. For local Vite development, the default frontend origin is `http://localhost:5173`.
 
+Optional ticket email notifications use SMTP; configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM` in `backend/.env`. Without SMTP settings, ticket email delivery is disabled while API operations and authenticated live ticket events continue. See the [integration contract](./docs/backend-integration-contract.md) for SSE client usage, notification behavior, and recommended email testing.
+
 For a fresh development database, apply the checked-in migrations and generate the client:
 
 ```bash

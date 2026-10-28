@@ -6,6 +6,37 @@ This document is the coordination reference for frontend and database contributo
 
 All roles use the same login flow. `POST /api/auth/login` issues the HttpOnly `mela_desk_session` cookie; send it with subsequent requests (`credentials: 'include'` in browser fetch).
 
+### Live ticket updates
+
+Authenticated clients can subscribe to `GET /api/events` using Server-Sent Events. The server sends named `ticket` events whose JSON `data` contains a `type` and `ticketId`, with event-specific fields when applicable. In browsers, use `new EventSource('http://localhost:5000/api/events', { withCredentials: true })`; the existing HttpOnly session cookie authenticates the connection.
+
+```ts
+const stream = new EventSource(`${apiBase}/api/events`, { withCredentials: true })
+stream.addEventListener('ticket', (event) => {
+  const update = JSON.parse((event as MessageEvent<string>).data)
+  // Refetch the ticket/list or merge the authorized update into the view.
+})
+```
+
+Event types include `ticket.created`, `ticket.assigned`, `ticket.unassigned`, `ticket.claimed`, `ticket.status_changed`, `ticket.comment_added`, and `ticket.internal_comment_added`. Events go only to the customer and assigned staff involved; newly created unassigned tickets are announced to active agents. Internal-comment events are staff-only. Reconnects do not replay missed events, so clients should reload their authorized data when a stream reconnects. Live events are held in process memory; multi-instance deployments need a shared event broker.
+
+### Email notifications
+
+Ticket assignment/claim, status changes, and public comments trigger email notifications when SMTP is configured. Internal notes are never emailed. Email delivery is best-effort and does not roll back a successful ticket update; configuration or delivery failures are logged by the API.
+
+Configure these values in `backend/.env` (do not commit secrets):
+
+```dotenv
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-smtp-username
+SMTP_PASSWORD=your-smtp-password
+SMTP_FROM=support@example.com
+```
+
+Use the SMTP host, port, TLS mode, credentials, and verified sender address issued by your email provider. For local development without a provider, leave `SMTP_HOST` and `SMTP_FROM` empty; email sends are disabled while API operations and live events continue to work. Use a provider sandbox/test inbox before enabling real customer emails.
+
 | Role | Ticket list | Ticket detail/comments | Ticket actions |
 |---|---|---|---|
 | Customer | Own tickets only | Own tickets; internal comments are hidden | Create tickets and add public comments |
@@ -42,6 +73,7 @@ An agent claim and an admin assignment are separate operations:
 | `POST` | `/api/auth/logout` | Public/session | Revoke the current session when present |
 | `PATCH` | `/api/auth/profile` | Session | Update the caller's display name |
 | `POST` | `/api/auth/change-password` | Session | Change the caller's password and revoke sessions |
+| `GET` | `/api/events` | Session | Subscribe to role-scoped live ticket events over SSE |
 
 Passwords must be 12–128 characters. Public registration always creates a customer; clients cannot choose a role.
 

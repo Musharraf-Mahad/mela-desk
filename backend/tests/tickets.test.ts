@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net'
 import type { Server } from 'node:http'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { prismaMock } = vi.hoisted(() => ({
+const { prismaMock, publishTicketEventMock, sendTicketEmailNotificationMock } = vi.hoisted(() => ({
   prismaMock: {
     session: {
       findFirst: vi.fn(),
@@ -19,15 +19,26 @@ const { prismaMock } = vi.hoisted(() => ({
     comment: {
       create: vi.fn(),
     },
+    user: {
+      findMany: vi.fn(),
+    },
     auditLog: {
       create: vi.fn(),
     },
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
   },
+  publishTicketEventMock: vi.fn(),
+  sendTicketEmailNotificationMock: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('../src/lib/prisma.js', () => ({ prisma: prismaMock }))
+vi.mock('../src/lib/ticketEvents.js', () => ({
+  publishTicketEvent: publishTicketEventMock,
+}))
+vi.mock('../src/lib/ticketNotifications.js', () => ({
+  sendTicketEmailNotification: sendTicketEmailNotificationMock,
+}))
 
 import app from '../src/app.js'
 import { SESSION_COOKIE_NAME, hashSessionToken } from '../src/lib/session.js'
@@ -41,6 +52,8 @@ describe('ticket routes', () => {
 
   beforeEach(async () => {
     vi.resetAllMocks()
+    prismaMock.user.findMany.mockResolvedValue([])
+    sendTicketEmailNotificationMock.mockResolvedValue(undefined)
     prismaMock.$transaction.mockImplementation(async (operation) =>
       typeof operation === 'function' ? operation(prismaMock) : Promise.all(operation),
     )
@@ -105,8 +118,10 @@ describe('ticket routes', () => {
     prismaMock.ticket.create.mockResolvedValue({
       id: 'ticket-1',
       subject: 'Need help',
+      priority: 'high',
       customer: { id: customer.id, name: 'Customer' },
     })
+    prismaMock.user.findMany.mockResolvedValue([{ id: agent.id }])
 
     const response = await fetch(`${baseUrl}/api/tickets`, {
       method: 'POST',
@@ -147,6 +162,14 @@ describe('ticket routes', () => {
       success: true,
       data: { ticket: expect.objectContaining({ id: 'ticket-1' }) },
     })
+    expect(publishTicketEventMock).toHaveBeenCalledWith(
+      [customer.id],
+      expect.objectContaining({ type: 'ticket.created', ticketId: 'ticket-1' }),
+    )
+    expect(publishTicketEventMock).toHaveBeenCalledWith(
+      [agent.id],
+      expect.objectContaining({ type: 'ticket.created', ticketId: 'ticket-1' }),
+    )
   })
 
   it('prevents agents from creating customer tickets', async () => {
@@ -456,7 +479,12 @@ describe('ticket routes', () => {
 
   it('creates a public customer comment using the authenticated author id', async () => {
     prismaMock.session.findFirst.mockResolvedValue({ user: customer })
-    prismaMock.ticket.findFirst.mockResolvedValue({ id: 'ticket-1' })
+    prismaMock.ticket.findFirst.mockResolvedValue({
+      id: 'ticket-1',
+      customerId: customer.id,
+      assigneeId: agent.id,
+      subject: 'Need help',
+    })
     prismaMock.comment.create.mockResolvedValue({
       id: 'comment-1',
       body: 'Customer reply',
@@ -499,11 +527,23 @@ describe('ticket routes', () => {
       },
     })
     expect(payload.data.comment).not.toHaveProperty('isInternal')
+    expect(publishTicketEventMock).toHaveBeenCalledWith(
+      [agent.id],
+      expect.objectContaining({ type: 'ticket.comment_added', ticketId: 'ticket-1' }),
+    )
+    expect(sendTicketEmailNotificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({ userIds: [agent.id], subject: 'New reply on your ticket: Need help' }),
+    )
   })
 
   it('allows an assigned agent to add an internal note', async () => {
     prismaMock.session.findFirst.mockResolvedValue({ user: agent })
-    prismaMock.ticket.findFirst.mockResolvedValue({ id: 'ticket-1' })
+    prismaMock.ticket.findFirst.mockResolvedValue({
+      id: 'ticket-1',
+      customerId: customer.id,
+      assigneeId: agent.id,
+      subject: 'Need help',
+    })
     prismaMock.comment.create.mockResolvedValue({
       id: 'comment-2',
       body: 'Internal note',
@@ -542,6 +582,11 @@ describe('ticket routes', () => {
         details: JSON.stringify({ commentId: 'comment-2' }),
       },
     })
+    expect(publishTicketEventMock).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({ type: 'ticket.internal_comment_added', ticketId: 'ticket-1' }),
+    )
+    expect(sendTicketEmailNotificationMock).not.toHaveBeenCalled()
   })
 
   it('prevents customers from changing ticket status', async () => {
@@ -583,7 +628,10 @@ describe('ticket routes', () => {
         findFirst: vi.fn().mockResolvedValue({ id: 'ticket-1', status: 'open' }),
         update: vi.fn().mockResolvedValue({
           id: 'ticket-1',
+          subject: 'Need help',
           status: 'in_progress',
+          customer: { id: customer.id },
+          assignee: { id: agent.id },
         }),
       },
       auditLog: { create: vi.fn().mockResolvedValue({}) },
@@ -622,6 +670,13 @@ describe('ticket routes', () => {
       success: true,
       data: { ticket: expect.objectContaining({ status: 'in_progress' }) },
     })
+    expect(publishTicketEventMock).toHaveBeenCalledWith(
+      [customer.id, agent.id],
+      expect.objectContaining({ type: 'ticket.status_changed', status: 'in_progress' }),
+    )
+    expect(sendTicketEmailNotificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({ userIds: [customer.id], subject: 'Ticket status updated: Need help' }),
+    )
   })
 
   it('does not let an agent update a ticket assigned to someone else', async () => {
@@ -722,6 +777,8 @@ describe('ticket routes', () => {
         }),
         update: vi.fn().mockResolvedValue({
           id: 'ticket-1',
+          subject: 'Need help',
+          customer: { id: customer.id },
           assignee: { id: 'agent-2', name: 'Agent Two' },
         }),
       },
@@ -764,6 +821,16 @@ describe('ticket routes', () => {
         details: JSON.stringify({ from: null, to: 'agent-2' }),
       },
     })
+    expect(publishTicketEventMock).toHaveBeenCalledWith(
+      [customer.id, 'agent-2'],
+      expect.objectContaining({ type: 'ticket.assigned', ticketId: 'ticket-1' }),
+    )
+    expect(sendTicketEmailNotificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userIds: [customer.id, 'agent-2'],
+        subject: 'Ticket assigned: Need help',
+      }),
+    )
   })
 
   it('rejects assignments to inactive users and does not update the ticket', async () => {

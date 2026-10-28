@@ -3,6 +3,8 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { authenticate, requireRole } from '../middleware/authenticate.js'
 import { prisma } from '../lib/prisma.js'
+import { publishTicketEvent } from '../lib/ticketEvents.js'
+import { sendTicketEmailNotification } from '../lib/ticketNotifications.js'
 
 const createTicketSchema = z.object({
   subject: z.string().trim().min(1).max(255),
@@ -122,6 +124,26 @@ ticketsRouter.post(
 
         return createdTicket
       })
+
+      publishTicketEvent([req.user!.id], {
+        type: 'ticket.created',
+        ticketId: ticket.id,
+        subject: ticket.subject,
+      })
+      try {
+        const agents = await prisma.user.findMany({
+          where: { role: UserRole.agent, isActive: true },
+          select: { id: true },
+        })
+        publishTicketEvent(agents.map(({ id }) => id), {
+          type: 'ticket.created',
+          ticketId: ticket.id,
+          subject: ticket.subject,
+          priority: ticket.priority,
+        })
+      } catch (error) {
+        console.error('New ticket live notification failed:', error)
+      }
 
       res.status(201).json({
         success: true,
@@ -389,6 +411,20 @@ ticketsRouter.patch(
         return
       }
 
+      const participantIds = [ticket.customer?.id, ticket.assignee?.id].filter(
+        (id): id is string => Boolean(id),
+      )
+      publishTicketEvent(participantIds, {
+        type: 'ticket.status_changed',
+        ticketId: ticket.id,
+        status: ticket.status,
+      })
+      void sendTicketEmailNotification({
+        userIds: [ticket.customer?.id ?? ''],
+        subject: `Ticket status updated: ${ticket.subject}`,
+        text: `The status of your ticket "${ticket.subject}" is now ${ticket.status.replace('_', ' ')}.`,
+      })
+
       res.status(200).json({
         success: true,
         data: { ticket },
@@ -469,7 +505,11 @@ ticketsRouter.patch(
           },
         })
 
-        return { kind: 'updated' as const, ticket }
+        return {
+          kind: 'updated' as const,
+          ticket,
+          previousAssigneeId: existingTicket.assigneeId,
+        }
       })
 
       if (result.kind === 'ticket_not_found') {
@@ -484,6 +524,26 @@ ticketsRouter.patch(
         })
         return
       }
+
+      const participantIds = [
+        result.ticket.customer?.id,
+        result.ticket.assignee?.id,
+        result.previousAssigneeId,
+      ].filter((id): id is string => Boolean(id))
+      publishTicketEvent(participantIds, {
+        type: parsed.data.assigneeId ? 'ticket.assigned' : 'ticket.unassigned',
+        ticketId: result.ticket.id,
+        assignee: result.ticket.assignee,
+      })
+      void sendTicketEmailNotification({
+        userIds: participantIds.filter((id) => id !== req.user!.id),
+        subject: parsed.data.assigneeId
+          ? `Ticket assigned: ${result.ticket.subject}`
+          : `Ticket unassigned: ${result.ticket.subject}`,
+        text: parsed.data.assigneeId
+          ? `Ticket "${result.ticket.subject}" has been assigned to ${result.ticket.assignee?.name ?? 'an agent'}.`
+          : `Ticket "${result.ticket.subject}" is now unassigned.`,
+      })
 
       res.status(200).json({
         success: true,
@@ -567,6 +627,22 @@ ticketsRouter.post(
         return
       }
 
+      publishTicketEvent(
+        [result.ticket.customer?.id, result.ticket.assignee?.id].filter(
+          (id): id is string => Boolean(id),
+        ),
+        {
+          type: 'ticket.claimed',
+          ticketId: result.ticket.id,
+          assignee: result.ticket.assignee,
+        },
+      )
+      void sendTicketEmailNotification({
+        userIds: [result.ticket.customer?.id ?? ''],
+        subject: `An agent picked up your ticket: ${result.ticket.subject}`,
+        text: `${result.ticket.assignee?.name ?? 'An agent'} has started working on your ticket "${result.ticket.subject}".`,
+      })
+
       res.status(200).json({
         success: true,
         data: { ticket: result.ticket },
@@ -621,7 +697,7 @@ ticketsRouter.post('/:ticketId/comments', authenticate, async (req, res) => {
             ? { assigneeId: req.user!.id }
             : {}),
       },
-      select: { id: true },
+      select: { id: true, customerId: true, assigneeId: true, subject: true },
     })
 
     if (!ticket) {
@@ -659,6 +735,25 @@ ticketsRouter.post('/:ticketId/comments', authenticate, async (req, res) => {
       req.user!.role === UserRole.customer
         ? (({ isInternal: _isInternal, ...publicComment }) => publicComment)(comment)
         : comment
+
+    const participants = [ticket.customerId, ticket.assigneeId].filter(
+      (id): id is string => Boolean(id),
+    )
+    const notificationRecipients = comment.isInternal
+      ? [ticket.assigneeId ?? ''].filter((id) => id !== req.user!.id)
+      : participants.filter((id) => id !== req.user!.id)
+    publishTicketEvent(notificationRecipients, {
+      type: comment.isInternal ? 'ticket.internal_comment_added' : 'ticket.comment_added',
+      ticketId: ticket.id,
+      comment: safeComment,
+    })
+    if (!comment.isInternal) {
+      void sendTicketEmailNotification({
+        userIds: notificationRecipients,
+        subject: `New reply on your ticket: ${ticket.subject}`,
+        text: `${comment.author.name} replied to "${ticket.subject}":\n\n${comment.body}`,
+      })
+    }
 
     res.status(201).json({
       success: true,
