@@ -3,13 +3,14 @@ import type { AddressInfo } from 'node:net'
 import type { Server } from 'node:http'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { prismaMock } = vi.hoisted(() => ({
+const { prismaMock, argon2Mock } = vi.hoisted(() => ({
   prismaMock: {
     session: {
       findFirst: vi.fn(),
       deleteMany: vi.fn(),
     },
     user: {
+      create: vi.fn(),
       findMany: vi.fn(),
       findFirst: vi.fn(),
       count: vi.fn(),
@@ -21,9 +22,14 @@ const { prismaMock } = vi.hoisted(() => ({
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
   },
+  argon2Mock: {
+    argon2id: 2,
+    hash: vi.fn(),
+  },
 }))
 
 vi.mock('../src/lib/prisma.js', () => ({ prisma: prismaMock }))
+vi.mock('argon2', () => ({ default: argon2Mock }))
 
 import app from '../src/app.js'
 import { SESSION_COOKIE_NAME } from '../src/lib/session.js'
@@ -50,6 +56,127 @@ describe('user directory routes', () => {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()))
     })
+  })
+
+  it('requires an authenticated admin to create an agent', async () => {
+    const response = await fetch(`${baseUrl}/api/users/agents`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'New Agent',
+        email: 'agent@example.com',
+        password: 'a-secure-agent-password',
+      }),
+    })
+
+    expect(response.status).toBe(401)
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+    expect(argon2Mock.hash).not.toHaveBeenCalled()
+  })
+
+  it('prevents agents from creating agent accounts', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: agent })
+
+    const response = await fetch(`${baseUrl}/api/users/agents`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=agent-token`,
+      },
+      body: JSON.stringify({
+        name: 'New Agent',
+        email: 'agent@example.com',
+        password: 'a-secure-agent-password',
+      }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+    expect(argon2Mock.hash).not.toHaveBeenCalled()
+  })
+
+  it('validates agent input before hashing or creating an account', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: admin })
+
+    const response = await fetch(`${baseUrl}/api/users/agents`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=admin-token`,
+      },
+      body: JSON.stringify({
+        name: ' ',
+        email: 'invalid-email',
+        password: 'short',
+      }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(argon2Mock.hash).not.toHaveBeenCalled()
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('creates an agent with a password hash and records an audit event', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: admin })
+    argon2Mock.hash.mockResolvedValue('argon2id-agent-hash')
+    const createdAgent = {
+      id: 'agent-2',
+      name: 'New Agent',
+      email: 'new.agent@example.com',
+      role: 'agent',
+      isActive: true,
+    }
+    const transaction = {
+      user: { create: vi.fn().mockResolvedValue(createdAgent) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
+
+    const response = await fetch(`${baseUrl}/api/users/agents`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=admin-token`,
+      },
+      body: JSON.stringify({
+        name: ' New Agent ',
+        email: 'NEW.AGENT@example.com',
+        password: 'a-secure-agent-password',
+      }),
+    })
+
+    expect(response.status).toBe(201)
+    expect(argon2Mock.hash).toHaveBeenCalledWith('a-secure-agent-password', {
+      type: argon2Mock.argon2id,
+    })
+    expect(transaction.user.create).toHaveBeenCalledWith({
+      data: {
+        name: 'New Agent',
+        email: 'new.agent@example.com',
+        passwordHash: 'argon2id-agent-hash',
+        role: 'agent',
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+      },
+    })
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: admin.id,
+        action: 'user.agent_created',
+        details: JSON.stringify({ agentId: createdAgent.id }),
+      },
+    })
+    const payload = await response.json()
+    expect(payload).toEqual({
+      success: true,
+      data: { agent: createdAgent },
+    })
+    expect(JSON.stringify(payload)).not.toContain('argon2id-agent-hash')
   })
 
   it('requires an authenticated session to list agents', async () => {

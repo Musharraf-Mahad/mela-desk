@@ -1,3 +1,4 @@
+import argon2 from 'argon2'
 import { Prisma, UserRole } from '@prisma/client'
 import { Router } from 'express'
 import { z } from 'zod'
@@ -13,7 +14,86 @@ const updateUserStatusSchema = z.object({
   isActive: z.boolean(),
 })
 
+const createAgentSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  email: z.string().trim().email().max(255).transform((email) => email.toLowerCase()),
+  password: z.string().min(12).max(128),
+})
+
 const usersRouter = Router()
+
+usersRouter.post(
+  '/agents',
+  authenticate,
+  requireRole(UserRole.admin),
+  async (req, res) => {
+    const parsed = createAgentSchema.safeParse(req.body)
+
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid agent details',
+        errors: parsed.error.issues.map(({ path, message }) => ({
+          field: path.join('.'),
+          message,
+        })),
+      })
+      return
+    }
+
+    try {
+      const passwordHash = await argon2.hash(parsed.data.password, {
+        type: argon2.argon2id,
+      })
+      const agent = await prisma.$transaction(async (transaction) => {
+        const createdAgent = await transaction.user.create({
+          data: {
+            name: parsed.data.name,
+            email: parsed.data.email,
+            passwordHash,
+            role: UserRole.agent,
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isActive: true,
+          },
+        })
+
+        await transaction.auditLog.create({
+          data: {
+            userId: req.user!.id,
+            action: 'user.agent_created',
+            details: JSON.stringify({ agentId: createdAgent.id }),
+          },
+        })
+
+        return createdAgent
+      })
+
+      res.status(201).json({
+        success: true,
+        data: { agent },
+      })
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        res.status(409).json({
+          success: false,
+          message: 'An account with this email already exists',
+        })
+        return
+      }
+
+      console.error('Agent creation failed:', error)
+      res.status(500).json({
+        success: false,
+        message: 'Unable to create agent',
+      })
+    }
+  },
+)
 
 usersRouter.get(
   '/agents',
