@@ -79,6 +79,20 @@ In `backend/.env`, set `DATABASE_URL` to your MySQL connection string, `PORT` to
 
 Optional ticket email notifications use SMTP; configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM` in `backend/.env`. Without SMTP settings, ticket email delivery is disabled while API operations and authenticated live ticket events continue. See the [integration contract](./docs/backend-integration-contract.md) for SSE client usage, notification behavior, and recommended email testing.
 
+### Local MySQL with Docker
+
+From the repository root, copy `docker.env.example` to `.env`. Its credentials are for local development only; change them before using this setup beyond a local machine. The root `.env` configures Docker Compose, while `backend/.env` configures the API. Set `DATABASE_URL` in `backend/.env` to match the Docker credentials, for example:
+
+```env
+DATABASE_URL="mysql://mela_desk:local_dev_password@127.0.0.1:3307/mela_desk"
+```
+
+Start MySQL and wait for its health check:
+
+```bash
+docker compose up -d --wait mysql
+```
+
 For a fresh development database, apply the checked-in migrations and generate the client:
 
 ```bash
