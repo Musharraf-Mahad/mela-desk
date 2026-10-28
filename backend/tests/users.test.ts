@@ -179,6 +179,111 @@ describe('user directory routes', () => {
     expect(JSON.stringify(payload)).not.toContain('argon2id-agent-hash')
   })
 
+  it('requires an admin to reset an agent password', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: agent })
+
+    const response = await fetch(`${baseUrl}/api/users/agents/agent-1/password`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=agent-token`,
+      },
+      body: JSON.stringify({ password: 'a-new-secure-agent-password' }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(argon2Mock.hash).not.toHaveBeenCalled()
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects short passwords before hashing', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: admin })
+
+    const response = await fetch(`${baseUrl}/api/users/agents/agent-1/password`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=admin-token`,
+      },
+      body: JSON.stringify({ password: 'short' }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(argon2Mock.hash).not.toHaveBeenCalled()
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('resets an agent password, revokes sessions, and writes an audit event', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: admin })
+    argon2Mock.hash.mockResolvedValue('new-agent-argon2id-hash')
+    const transaction = {
+      user: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'agent-1' }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      session: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
+
+    const response = await fetch(`${baseUrl}/api/users/agents/agent-1/password`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=admin-token`,
+      },
+      body: JSON.stringify({ password: 'a-new-secure-agent-password' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(argon2Mock.hash).toHaveBeenCalledWith('a-new-secure-agent-password', {
+      type: argon2Mock.argon2id,
+    })
+    expect(transaction.user.update).toHaveBeenCalledWith({
+      where: { id: 'agent-1' },
+      data: { passwordHash: 'new-agent-argon2id-hash' },
+    })
+    expect(transaction.session.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'agent-1' },
+    })
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: admin.id,
+        action: 'user.agent_password_reset',
+        details: JSON.stringify({ agentId: 'agent-1' }),
+      },
+    })
+    expect(await response.json()).toEqual({
+      success: true,
+      message: 'Agent password reset; existing sessions were revoked',
+    })
+  })
+
+  it('returns 404 when asked to reset a non-agent account', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: admin })
+    argon2Mock.hash.mockResolvedValue('new-agent-argon2id-hash')
+    const transaction = {
+      user: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() },
+      session: { deleteMany: vi.fn() },
+      auditLog: { create: vi.fn() },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
+
+    const response = await fetch(`${baseUrl}/api/users/agents/not-agent/password`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE_NAME}=admin-token`,
+      },
+      body: JSON.stringify({ password: 'a-new-secure-agent-password' }),
+    })
+
+    expect(response.status).toBe(404)
+    expect(transaction.user.update).not.toHaveBeenCalled()
+    expect(transaction.session.deleteMany).not.toHaveBeenCalled()
+    expect(transaction.auditLog.create).not.toHaveBeenCalled()
+  })
+
   it('requires an authenticated session to list agents', async () => {
     const response = await fetch(`${baseUrl}/api/users/agents`)
 

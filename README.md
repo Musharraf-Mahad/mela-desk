@@ -143,6 +143,7 @@ All authenticated routes use the `mela_desk_session` HttpOnly cookie issued by `
 | `PATCH` | `/api/tickets/:ticketId/assignee` | Admin |
 | `POST` | `/api/tickets/:ticketId/claim` | Agent; open unassigned tickets only |
 | `POST` | `/api/users/agents` | Admin; creates an active agent account |
+| `PATCH` | `/api/users/agents/:agentId/password` | Admin; resets agent password and revokes sessions |
 | `GET` | `/api/users/agents` | Admin |
 | `PATCH` | `/api/users/:userId/status` | Admin |
 | `GET` | `/api/audit-logs` | Admin; filterable by ticket, user, and action |
