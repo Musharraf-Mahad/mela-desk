@@ -4,6 +4,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { authenticate, requireRole } from '../middleware/authenticate.js'
 import { prisma } from '../lib/prisma.js'
+import { closeTicketEventConnections } from '../lib/ticketEvents.js'
 
 const listAgentsSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -160,6 +161,7 @@ usersRouter.patch(
         return
       }
 
+      closeTicketEventConnections(agentId)
       res.status(200).json({
         success: true,
         message: 'Agent password reset; existing sessions were revoked',
@@ -335,6 +337,10 @@ usersRouter.patch(
           message: 'The last active admin cannot be deactivated',
         })
         return
+      }
+
+      if (result.kind === 'updated' && !result.user.isActive) {
+        closeTicketEventConnections(userId)
       }
 
       res.status(200).json({

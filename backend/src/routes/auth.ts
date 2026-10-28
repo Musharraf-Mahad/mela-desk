@@ -3,6 +3,7 @@ import argon2 from 'argon2'
 import { Router } from 'express'
 import { z } from 'zod'
 import { prisma } from '../lib/prisma.js'
+import { closeTicketEventConnections } from '../lib/ticketEvents.js'
 import { authenticate } from '../middleware/authenticate.js'
 import {
   clearSessionCookie,
@@ -305,6 +306,7 @@ authRouter.post('/change-password', authenticate, async (req, res) => {
       })
     })
 
+    closeTicketEventConnections(req.user!.id)
     clearSessionCookie(res)
     res.status(200).json({
       success: true,
@@ -324,9 +326,12 @@ authRouter.post('/logout', async (req, res) => {
 
   try {
     if (token) {
-      await prisma.session.deleteMany({
+      const session = await prisma.session.findFirst({
         where: { tokenHash: hashSessionToken(token) },
+        select: { userId: true },
       })
+      await prisma.session.deleteMany({ where: { tokenHash: hashSessionToken(token) } })
+      if (session) closeTicketEventConnections(session.userId)
     }
 
     clearSessionCookie(res)

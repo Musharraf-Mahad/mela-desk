@@ -9,6 +9,7 @@ declare global {
       user?: {
         id: string
         role: UserRole
+        sessionExpiresAt: Date
       }
     }
   }
@@ -30,6 +31,7 @@ export const authenticate: RequestHandler = async (req, res, next) => {
         user: { isActive: true },
       },
       select: {
+        expiresAt: true,
         user: {
           select: {
             id: true,
@@ -45,7 +47,10 @@ export const authenticate: RequestHandler = async (req, res, next) => {
       return
     }
 
-    req.user = session.user
+    req.user = {
+      ...session.user,
+      sessionExpiresAt: session.expiresAt,
+    }
     next()
   } catch (error) {
     console.error('Authentication session lookup failed:', error)

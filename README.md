@@ -77,6 +77,8 @@ cp .env.example .env
 
 In `backend/.env`, set `DATABASE_URL` to your MySQL connection string, `PORT` to the API port, and `FRONTEND_ORIGINS` to a comma-separated list of trusted frontend origins. For local Vite development, the default frontend origin is `http://localhost:5173`.
 
+Optional ticket email notifications use SMTP; configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM` in `backend/.env`. Without SMTP settings, ticket email delivery is disabled while API operations and authenticated live ticket events continue. See the [integration contract](./docs/backend-integration-contract.md) for SSE client usage, notification behavior, and recommended email testing.
+
 ### Local MySQL with Docker
 
 From the repository root, copy `docker.env.example` to `.env`. Its credentials are for local development only; change them before using this setup beyond a local machine. The root `.env` configures Docker Compose, while `backend/.env` configures the API. Set `DATABASE_URL` in `backend/.env` to match the Docker credentials, for example:
