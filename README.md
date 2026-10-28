@@ -94,6 +94,34 @@ npm test
 npm run build
 ```
 
+After configuring MySQL and applying migrations, verify real database-backed API workflows with:
+
+```bash
+npm run db:smoke
+```
+
+This creates a uniquely named temporary customer and ticket, exercises registration, login, profile, ticket, comment, and logout flows against MySQL, and removes the test records afterward. It does not modify existing users or tickets.
+
+Public registration only creates customer accounts. To create the initial admin in Windows PowerShell, run this from the repository's `backend` directory. The password prompt is hidden; choose a password between 12 and 128 characters.
+
+```powershell
+$env:BOOTSTRAP_ADMIN_NAME = Read-Host "Admin name"
+$env:BOOTSTRAP_ADMIN_EMAIL = Read-Host "Admin email"
+$securePassword = Read-Host "Admin password" -AsSecureString
+$passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+try {
+  $env:BOOTSTRAP_ADMIN_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+  npm.cmd run db:create-admin
+} finally {
+  Remove-Item Env:BOOTSTRAP_ADMIN_NAME -ErrorAction SilentlyContinue
+  Remove-Item Env:BOOTSTRAP_ADMIN_EMAIL -ErrorAction SilentlyContinue
+  Remove-Item Env:BOOTSTRAP_ADMIN_PASSWORD -ErrorAction SilentlyContinue
+  [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
+}
+```
+
+The command hashes the password with Argon2id, records an audit event, and refuses to create another admin once any admin account exists. Never commit the credentials or share the password.
+
 ### Current API routes
 
 All authenticated routes use the `mela_desk_session` HttpOnly cookie issued by `POST /api/auth/login`.
