@@ -77,6 +77,20 @@ cp .env.example .env
 
 In `backend/.env`, set `DATABASE_URL` to your MySQL connection string, `PORT` to the API port, and `FRONTEND_ORIGINS` to a comma-separated list of trusted frontend origins. For local Vite development, the default frontend origin is `http://localhost:5173`.
 
+### Local MySQL with Docker
+
+From the repository root, copy `docker.env.example` to `.env`. Its credentials are for local development only; change them before using this setup beyond a local machine. The root `.env` configures Docker Compose, while `backend/.env` configures the API. Set `DATABASE_URL` in `backend/.env` to match the Docker credentials, for example:
+
+```env
+DATABASE_URL="mysql://mela_desk:local_dev_password@127.0.0.1:3307/mela_desk"
+```
+
+Start MySQL and wait for its health check:
+
+```bash
+docker compose up -d --wait mysql
+```
+
 For a fresh development database, apply the checked-in migrations and generate the client:
 
 ```bash
