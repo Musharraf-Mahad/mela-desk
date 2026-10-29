@@ -10,16 +10,52 @@ export interface AgentItem {
   isActive?: boolean;
 }
 
+export interface CustomerItem {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
+  isActive?: boolean;
+  createdAt: string;
+  _count?: {
+    tickets: number;
+  };
+}
+
 export interface PaginatedAgents {
   agents: AgentItem[];
   pagination: PaginationMeta;
 }
 
+export interface PaginatedCustomers {
+  customers: CustomerItem[];
+  pagination: PaginationMeta;
+}
+
 export const userApi = {
-  async getAgents(params?: { page?: number; pageSize?: number }): Promise<PaginatedAgents> {
+  async getAgents(params?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    includeInactive?: boolean;
+    status?: string;
+  }): Promise<PaginatedAgents> {
     const res = await apiClient.get<ApiResponse<PaginatedAgents>>('/users/agents', { params });
     if (!res.data.data) {
       throw new Error(res.data.message || 'Failed to load agents');
+    }
+    return res.data.data;
+  },
+
+  async getCustomers(params?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    status?: string;
+  }): Promise<PaginatedCustomers> {
+    const res = await apiClient.get<ApiResponse<PaginatedCustomers>>('/users/customers', { params });
+    if (!res.data.data) {
+      throw new Error(res.data.message || 'Failed to load customers');
     }
     return res.data.data;
   },
