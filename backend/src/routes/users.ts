@@ -9,6 +9,21 @@ import { closeTicketEventConnections } from '../lib/ticketEvents.js'
 const listAgentsSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().trim().optional(),
+  includeInactive: z
+    .preprocess((val) => {
+      if (typeof val === 'string') return val === 'true' || val === '1'
+      return Boolean(val)
+    }, z.boolean())
+    .optional(),
+  status: z.enum(['all', 'active', 'inactive']).optional(),
+})
+
+const listCustomersSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().trim().optional(),
+  status: z.enum(['all', 'active', 'inactive']).optional(),
 })
 
 const updateUserStatusSchema = z.object({
@@ -196,19 +211,44 @@ usersRouter.get(
     }
 
     try {
-      const { page, pageSize } = parsed.data
-      const where = {
+      const { page, pageSize, search, includeInactive, status } = parsed.data
+      const shouldIncludeInactive = Boolean(includeInactive || status === 'all')
+
+      const where: Prisma.UserWhereInput = {
         role: UserRole.agent,
-        isActive: true,
+        ...(status === 'inactive'
+          ? { isActive: false }
+          : shouldIncludeInactive
+          ? {}
+          : { isActive: true }),
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search } },
+                { email: { contains: search } },
+              ],
+            }
+          : {}),
       }
-      const [agents, total] = await prisma.$transaction([
-        prisma.user.findMany({
-          where,
-          select: {
+
+      const select = shouldIncludeInactive || status
+        ? {
             id: true,
             name: true,
             email: true,
-          },
+            role: true,
+            isActive: true,
+          }
+        : {
+            id: true,
+            name: true,
+            email: true,
+          }
+
+      const [agents, total] = await prisma.$transaction([
+        prisma.user.findMany({
+          where,
+          select,
           orderBy: [{ name: 'asc' }, { id: 'asc' }],
           skip: (page - 1) * pageSize,
           take: pageSize,
@@ -233,6 +273,89 @@ usersRouter.get(
       res.status(500).json({
         success: false,
         message: 'Unable to list agents',
+      })
+    }
+  },
+)
+
+usersRouter.get(
+  '/customers',
+  authenticate,
+  requireRole(UserRole.admin),
+  async (req, res) => {
+    const parsed = listCustomersSchema.safeParse(req.query)
+
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid customer list options',
+        errors: parsed.error.issues.map(({ path, message }) => ({
+          field: path.join('.'),
+          message,
+        })),
+      })
+      return
+    }
+
+    try {
+      const { page, pageSize, search, status } = parsed.data
+      const where: Prisma.UserWhereInput = {
+        role: UserRole.customer,
+        ...(status === 'active'
+          ? { isActive: true }
+          : status === 'inactive'
+          ? { isActive: false }
+          : {}),
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search } },
+                { email: { contains: search } },
+              ],
+            }
+          : {}),
+      }
+
+      const [customers, total] = await prisma.$transaction([
+        prisma.user.findMany({
+          where,
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isActive: true,
+            createdAt: true,
+            _count: {
+              select: {
+                tickets: true,
+              },
+            },
+          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        prisma.user.count({ where }),
+      ])
+
+      res.status(200).json({
+        success: true,
+        data: {
+          customers,
+          pagination: {
+            page,
+            pageSize,
+            total,
+            totalPages: Math.ceil(total / pageSize),
+          },
+        },
+      })
+    } catch (error) {
+      console.error('Customer directory lookup failed:', error)
+      res.status(500).json({
+        success: false,
+        message: 'Unable to list customers',
       })
     }
   },

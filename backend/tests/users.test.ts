@@ -339,6 +339,43 @@ describe('user directory routes', () => {
     })
   })
 
+  it('returns agents including inactive agents when requested', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: admin })
+    const agents = [
+      { id: 'agent-1', name: 'Agent One', email: 'one@example.com', role: 'agent', isActive: true },
+      { id: 'agent-2', name: 'Agent Two', email: 'two@example.com', role: 'agent', isActive: false },
+    ]
+    prismaMock.$transaction.mockResolvedValue([agents, 2])
+
+    const response = await fetch(`${baseUrl}/api/users/agents?includeInactive=true`, {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=admin-token` },
+    })
+
+    expect(response.status).toBe(200)
+    expect(prismaMock.user.findMany).toHaveBeenCalledWith({
+      where: { role: 'agent' },
+      select: { id: true, name: true, email: true, role: true, isActive: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      skip: 0,
+      take: 20,
+    })
+    expect(prismaMock.user.count).toHaveBeenCalledWith({
+      where: { role: 'agent' },
+    })
+    expect(await response.json()).toEqual({
+      success: true,
+      data: {
+        agents,
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          total: 2,
+          totalPages: 1,
+        },
+      },
+    })
+  })
+
   it('rejects invalid pagination and does not query the database', async () => {
     prismaMock.session.findFirst.mockResolvedValue({ user: admin })
 
@@ -349,6 +386,87 @@ describe('user directory routes', () => {
     expect(response.status).toBe(400)
     expect(prismaMock.user.findMany).not.toHaveBeenCalled()
     expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('requires an authenticated session to list customers', async () => {
+    const response = await fetch(`${baseUrl}/api/users/customers`)
+
+    expect(response.status).toBe(401)
+    expect(prismaMock.user.findMany).not.toHaveBeenCalled()
+  })
+
+  it('allows only admins to access the customer directory', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: agent })
+
+    const response = await fetch(`${baseUrl}/api/users/customers`, {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=agent-token` },
+    })
+
+    expect(response.status).toBe(403)
+    expect(prismaMock.user.findMany).not.toHaveBeenCalled()
+  })
+
+  it('returns a paginated customer list with ticket count and safe fields', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: admin })
+    const customers = [
+      {
+        id: 'cust-1',
+        name: 'Customer One',
+        email: 'cust1@example.com',
+        role: 'customer',
+        isActive: true,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        _count: { tickets: 3 },
+      },
+    ]
+    prismaMock.$transaction.mockResolvedValue([customers, 1])
+
+    const response = await fetch(`${baseUrl}/api/users/customers?page=1&pageSize=10`, {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=admin-token` },
+    })
+
+    expect(response.status).toBe(200)
+    expect(prismaMock.user.findMany).toHaveBeenCalledWith({
+      where: { role: 'customer' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        _count: { select: { tickets: true } },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      skip: 0,
+      take: 10,
+    })
+    expect(prismaMock.user.count).toHaveBeenCalledWith({
+      where: { role: 'customer' },
+    })
+    expect(await response.json()).toEqual({
+      success: true,
+      data: {
+        customers,
+        pagination: {
+          page: 1,
+          pageSize: 10,
+          total: 1,
+          totalPages: 1,
+        },
+      },
+    })
+  })
+
+  it('rejects invalid customer pagination', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: admin })
+
+    const response = await fetch(`${baseUrl}/api/users/customers?page=0`, {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=admin-token` },
+    })
+
+    expect(response.status).toBe(400)
+    expect(prismaMock.user.findMany).not.toHaveBeenCalled()
   })
 
   it('requires an admin to update account status', async () => {
@@ -376,25 +494,34 @@ describe('user directory routes', () => {
         'content-type': 'application/json',
         cookie: `${SESSION_COOKIE_NAME}=admin-token`,
       },
-      body: JSON.stringify({ isActive: 'false' }),
+      body: JSON.stringify({ isActive: 'invalid' }),
     })
 
     expect(response.status).toBe(400)
-    expect(prismaMock.user.update).not.toHaveBeenCalled()
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
   })
 
-  it('deactivates an account, revokes sessions, and writes an audit entry', async () => {
+  it('updates account status, revokes sessions on deactivation, and writes an audit event', async () => {
     prismaMock.session.findFirst.mockResolvedValue({ user: admin })
-    prismaMock.user.findFirst.mockResolvedValue({
-      id: 'agent-1',
-      role: 'agent',
-      isActive: true,
-    })
-    prismaMock.user.update.mockResolvedValue({
+    const updatedUser = {
       id: 'agent-1',
       role: 'agent',
       isActive: false,
-    })
+    }
+    const transaction = {
+      user: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'agent-1',
+          role: 'agent',
+          isActive: true,
+        }),
+        update: vi.fn().mockResolvedValue(updatedUser),
+        count: vi.fn(),
+      },
+      session: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback) => callback(transaction))
 
     const response = await fetch(`${baseUrl}/api/users/agent-1/status`, {
       method: 'PATCH',
@@ -406,31 +533,34 @@ describe('user directory routes', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(prismaMock.user.update).toHaveBeenCalledWith({
+    expect(transaction.user.update).toHaveBeenCalledWith({
       where: { id: 'agent-1' },
       data: { isActive: false },
       select: { id: true, role: true, isActive: true },
     })
-    expect(prismaMock.session.deleteMany).toHaveBeenCalledWith({
+    expect(transaction.session.deleteMany).toHaveBeenCalledWith({
       where: { userId: 'agent-1' },
     })
-    expect(prismaMock.auditLog.create).toHaveBeenCalledWith({
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
       data: {
         userId: admin.id,
         action: 'user.deactivated',
-        details: JSON.stringify({ targetUserId: 'agent-1', role: 'agent' }),
+        details: JSON.stringify({
+          targetUserId: 'agent-1',
+          role: 'agent',
+        }),
       },
     })
     expect(await response.json()).toEqual({
       success: true,
-      data: { user: { id: 'agent-1', role: 'agent', isActive: false } },
+      data: { user: updatedUser },
     })
   })
 
-  it('does not allow an admin to deactivate their own account', async () => {
+  it('prevents self-deactivation by the authenticated admin', async () => {
     prismaMock.session.findFirst.mockResolvedValue({ user: admin })
 
-    const response = await fetch(`${baseUrl}/api/users/${admin.id}/status`, {
+    const response = await fetch(`${baseUrl}/api/users/admin-1/status`, {
       method: 'PATCH',
       headers: {
         'content-type': 'application/json',
@@ -444,8 +574,7 @@ describe('user directory routes', () => {
   })
 
   it('prevents deactivation of the last active admin', async () => {
-    const secondAdmin = { id: 'admin-2', role: 'admin' }
-    prismaMock.session.findFirst.mockResolvedValue({ user: secondAdmin })
+    prismaMock.session.findFirst.mockResolvedValue({ user: { id: 'admin-2', role: 'admin' } })
     prismaMock.user.findFirst.mockResolvedValue({
       id: 'admin-1',
       role: 'admin',
