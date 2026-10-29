@@ -2,15 +2,19 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/common/Card';
 import { Textarea } from '../../components/common/Textarea';
+import { Select } from '../../components/common/Select';
 import { Button } from '../../components/common/Button';
 import { PriorityBadge, StatusBadge } from '../../components/common/Badge';
 import { Alert } from '../../components/common/Alert';
+import { useAuth } from '../../context/AuthContext';
 import { ticketApi } from '../../api/tickets.api';
+import { userApi, type AgentItem } from '../../api/users.api';
 import type { Ticket } from '../../types/ticket';
 
 export function TicketDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [replyText, setReplyText] = useState('');
@@ -18,6 +22,9 @@ export function TicketDetailsPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [activeAgents, setActiveAgents] = useState<AgentItem[]>([]);
+  const [selectedAssignee, setSelectedAssignee] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -29,6 +36,7 @@ export function TicketDetailsPage() {
         const data = await ticketApi.getTicketById(id);
         if (isMounted) {
           setTicket(data);
+          setSelectedAssignee(data.assignee?.id || '');
           setError(null);
         }
       } catch (err: unknown) {
@@ -45,6 +53,15 @@ export function TicketDetailsPage() {
       isMounted = false;
     };
   }, [id, refreshTrigger]);
+
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      userApi
+        .getAgents({ page: 1, pageSize: 100 })
+        .then((res) => setActiveAgents(res.agents))
+        .catch(() => {});
+    }
+  }, [user?.role]);
 
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +81,27 @@ export function TicketDetailsPage() {
       setError(err instanceof Error ? err.message : 'Failed to post reply');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleAssignAgent = async (newAssigneeId: string) => {
+    if (!id) return;
+
+    setIsAssigning(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const assigneeParam = newAssigneeId === '' ? null : newAssigneeId;
+      const updated = await ticketApi.assignTicket(id, assigneeParam);
+      setTicket((prev) => (prev ? { ...prev, ...updated, comments: prev.comments } : updated));
+      setSelectedAssignee(newAssigneeId);
+      setSuccessMessage('Ticket assignment updated.');
+      setTimeout(() => setSuccessMessage(null), 3500);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to assign ticket');
+    } finally {
+      setIsAssigning(false);
     }
   };
 
@@ -88,6 +126,20 @@ export function TicketDetailsPage() {
   }
 
   if (!ticket) return null;
+
+  const agentOptions = [
+    { value: '', label: 'Unassigned' },
+    ...activeAgents.map((ag) => ({
+      value: ag.id,
+      label: ag.name,
+    })),
+  ];
+  if (ticket.assignee && !activeAgents.some((ag) => ag.id === ticket.assignee!.id)) {
+    agentOptions.push({
+      value: ticket.assignee.id,
+      label: ticket.assignee.name,
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -218,6 +270,18 @@ export function TicketDetailsPage() {
                     {ticket.assignee?.name || 'Pending assignment'}
                   </span>
                 </div>
+
+                {user?.role === 'admin' && (
+                  <div className="pt-3 border-t border-[#E2E8F0]">
+                    <Select
+                      label="Assign Agent"
+                      value={selectedAssignee}
+                      disabled={isAssigning}
+                      onChange={(e) => handleAssignAgent(e.target.value)}
+                      options={agentOptions}
+                    />
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
