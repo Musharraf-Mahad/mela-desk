@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-A customer support ticketing system converts customer requests and issues into structured records with unique IDs. It organizes requests so support staff can prioritize, assign, track, and resolve them. Both external customers and company staff can submit tickets.
+A customer support ticketing system converts customer requests and issues into structured records with unique IDs. It organizes requests so support staff can prioritize, assign, track, and resolve them.  external customers can submit tickets.
 
 ## 2. User Roles
 
