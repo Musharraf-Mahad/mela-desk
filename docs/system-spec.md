@@ -1,4 +1,4 @@
-# Customer Support Ticketing System
+﻿# Customer Support Ticketing System
 
 ## 1. Overview
 
@@ -56,4 +56,4 @@ Priorities: Low, Medium, High, Urgent. New tickets default to Medium priority.
 
 - Frontend: React, TypeScript, Tailwind CSS.
 - Backend: Node.js, Express, TypeScript, REST API.
-- Database: MYSQL with prisma ORM.
+- Database: MySQL with Prisma ORM.
