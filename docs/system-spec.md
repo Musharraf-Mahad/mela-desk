@@ -44,7 +44,6 @@ A customer support ticketing system converts customer requests and issues into s
 - Only authorized staff can assign tickets or manage roles.
 - Resolution details are required before a ticket is marked Resolved.
 - Important changes record the actor and timestamp.
-- Ordinary users cannot permanently delete tickets.
 
 ## 6. Ticket Status and Priority
 
