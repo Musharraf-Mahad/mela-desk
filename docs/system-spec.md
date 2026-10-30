@@ -1,0 +1,59 @@
+# Customer Support Ticketing System
+
+## 1. Overview
+
+A customer support ticketing system converts customer requests and issues into structured records with unique IDs. It organizes requests so support staff can prioritize, assign, track, and resolve them.  external customers can submit tickets.
+
+## 2. User Roles
+
+- Customer: Creates tickets, views their own tickets, and replies.
+- Support Agent: Handles assigned or authorized tickets, replies, and updates ticket status.
+- Administrator: Manages users and roles, oversees tickets, and monitors support activity.
+
+## 3. Core Functional Requirements
+
+- Users can sign in and sign out; external customers can register.
+- Administrators can manage staff accounts and roles.
+- Customers and staff can create tickets with a subject, description, and category.
+- Every ticket receives a unique ticket number.
+- Requesters can view and track their own tickets.
+- Requesters and support agents can exchange replies on tickets.
+- Authorized agents can assign tickets and update priority and status.
+- Agents can record resolution details and close tickets.
+- The system records important ticket changes and timestamps.
+- Role-appropriate dashboards show ticket summaries.
+- Users can search and filter tickets they are permitted to access.
+
+## 4. Core Non-Functional Requirements
+
+- Securely hash passwords and enforce role-based access control.
+- Prevent users from viewing tickets they are not authorized to access.
+- Validate input on the backend and handle errors safely.
+- Provide a responsive, accessible, and easy-to-use interface.
+- Keep code modular, maintainable, and documented.
+- Maintain unique ticket identifiers and consistent related records.
+- Test critical workflows and authorization rules.
+- Keep secrets and credentials out of source control.
+
+## 5. Business Rules
+
+- Ticket numbers must be unique and system-generated.
+- Subject, description, and category are required.
+- New tickets default to Open status and Medium priority.
+- Customers can view only their own tickets.
+- Only authorized staff can assign tickets or manage roles.
+- Resolution details are required before a ticket is marked Resolved.
+- Important changes record the actor and timestamp.
+- Ordinary users cannot permanently delete tickets.
+
+## 6. Ticket Status and Priority
+
+Statuses: Open, In Progress, Resolved, Closed.
+
+Priorities: Low, Medium, High, Urgent. New tickets default to Medium priority.
+
+## 7. Technical Direction
+
+- Frontend: React, TypeScript, Tailwind CSS.
+- Backend: Node.js, Express, TypeScript, REST API.
+- Database: MYSQL with prisma ORM.
