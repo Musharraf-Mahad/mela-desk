@@ -170,7 +170,7 @@ export function TopNav({ onToggleSidebar }: TopNavProps) {
       >
         <div className="space-y-4">
           <Input
-            placeholder="Type ticket number or keywords (e.g. #MD-1048, password, billing)..."
+            placeholder="Type ticket number or keywords (e.g. TKT-000123, password, billing)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             leftIcon={<Search className="w-4 h-4" />}
@@ -183,11 +183,11 @@ export function TopNav({ onToggleSidebar }: TopNavProps) {
                 type="button"
                 onClick={() => {
                   setIsSearchOpen(false);
-                  navigate('/tickets/MD-1048');
+                  navigate('/tickets/TKT-000001');
                 }}
                 className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 text-xs font-mono cursor-pointer"
               >
-                #MD-1048
+                TKT-000001
               </button>
               <button
                 type="button"

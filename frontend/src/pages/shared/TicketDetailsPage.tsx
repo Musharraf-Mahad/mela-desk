@@ -145,8 +145,14 @@ export function TicketDetailsPage() {
     <div className="space-y-6">
       {/* Title */}
       <div>
+        <div className="flex flex-wrap items-center gap-2 mb-1">
+          <span className="font-mono text-xs font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
+            {ticket.ticketNumber || `#${ticket.id}`}
+          </span>
+          <span className="text-[11px] text-slate-400 font-mono">Ref: {ticket.id}</span>
+        </div>
         <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] tracking-tight">
-          #{ticket.id} · {ticket.subject}
+          {ticket.ticketNumber || `#${ticket.id}`} · {ticket.subject}
         </h2>
         <p className="text-xs text-slate-500 mt-0.5">
           Created on {new Date(ticket.createdAt).toLocaleDateString()}

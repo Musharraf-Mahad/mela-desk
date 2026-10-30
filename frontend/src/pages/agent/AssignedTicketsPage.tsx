@@ -96,7 +96,7 @@ export function AssignedTicketsPage() {
       >
         <Input
           label="Search"
-          placeholder="Search by subject or description"
+          placeholder="Search by ticket #, subject or description"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           leftIcon={<Search className="w-4 h-4" />}
@@ -176,8 +176,13 @@ export function AssignedTicketsPage() {
                   isClickable
                   onClick={() => navigate(`/agent/tickets/${ticket.id}`)}
                 >
-                  <TableCell className="font-semibold text-[#0F172A] font-mono text-xs">
-                    #{ticket.id}
+                  <TableCell className="font-mono text-xs">
+                    <span className="block font-bold text-brand-600 text-sm">
+                      {ticket.ticketNumber || `#${ticket.id}`}
+                    </span>
+                    <span className="block text-[10px] text-slate-400 font-normal">
+                      {ticket.id}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <span className="font-medium text-slate-800">{ticket.subject}</span>

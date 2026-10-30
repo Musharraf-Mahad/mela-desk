@@ -26,6 +26,7 @@ export interface Comment {
 
 export interface Ticket {
   id: string;
+  ticketNumber?: string;
   customerId?: string;
   assigneeId?: string | null;
   customer?: TicketAuthor;

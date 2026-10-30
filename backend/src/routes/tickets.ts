@@ -5,6 +5,7 @@ import { authenticate, requireRole } from '../middleware/authenticate.js'
 import { prisma } from '../lib/prisma.js'
 import { publishTicketEvent } from '../lib/ticketEvents.js'
 import { sendTicketEmailNotification } from '../lib/ticketNotifications.js'
+import { allocateNextTicketNumber } from '../lib/ticketNumber.js'
 
 const createTicketSchema = z.object({
   subject: z.string().trim().min(1).max(255),
@@ -44,6 +45,7 @@ const assignTicketSchema = z.object({
 })
 
 const ticketSelect = {
+  ticketNumber: true,
   id: true,
   subject: true,
   description: true,
@@ -102,9 +104,11 @@ ticketsRouter.post(
 
     try {
       const ticket = await prisma.$transaction(async (transaction) => {
+        const ticketNumber = await allocateNextTicketNumber(transaction)
         const createdTicket = await transaction.ticket.create({
           data: {
             ...parsed.data,
+            ticketNumber,
             customerId: req.user!.id,
           },
           select: ticketSelect,
@@ -116,6 +120,7 @@ ticketsRouter.post(
             userId: req.user!.id,
             action: 'ticket.created',
             details: JSON.stringify({
+              ticketNumber,
               category: parsed.data.category,
               priority: parsed.data.priority,
             }),
@@ -128,6 +133,7 @@ ticketsRouter.post(
       publishTicketEvent([req.user!.id], {
         type: 'ticket.created',
         ticketId: ticket.id,
+        ticketNumber: ticket.ticketNumber,
         subject: ticket.subject,
       })
       try {
@@ -138,6 +144,7 @@ ticketsRouter.post(
         publishTicketEvent(agents.map(({ id }) => id), {
           type: 'ticket.created',
           ticketId: ticket.id,
+          ticketNumber: ticket.ticketNumber,
           subject: ticket.subject,
           priority: ticket.priority,
         })
@@ -181,6 +188,7 @@ ticketsRouter.get('/', authenticate, async (req, res) => {
       ...(search
         ? {
             OR: [
+              { ticketNumber: { contains: search } },
               { subject: { contains: search } },
               { description: { contains: search } },
             ],
@@ -252,6 +260,7 @@ ticketsRouter.get(
         ...(search
           ? {
               OR: [
+                { ticketNumber: { contains: search } },
                 { subject: { contains: search } },
                 { description: { contains: search } },
               ],
@@ -302,7 +311,9 @@ ticketsRouter.get('/:ticketId', authenticate, async (req, res) => {
   try {
     const ticket = await prisma.ticket.findFirst({
       where: {
-        id: ticketId,
+        ...(ticketId.toUpperCase().startsWith('TKT-')
+          ? { ticketNumber: ticketId.toUpperCase() }
+          : { id: ticketId }),
         ...(req.user!.role === UserRole.customer
           ? { customerId: req.user!.id }
           : req.user!.role === UserRole.agent
@@ -377,7 +388,9 @@ ticketsRouter.patch(
       const ticket = await prisma.$transaction(async (transaction) => {
         const existingTicket = await transaction.ticket.findFirst({
           where: {
-            id: ticketId,
+            ...(ticketId.toUpperCase().startsWith('TKT-')
+              ? { ticketNumber: ticketId.toUpperCase() }
+              : { id: ticketId }),
             ...(req.user!.role === UserRole.agent ? { assigneeId: req.user!.id } : {}),
           },
           select: { id: true, status: true },
@@ -468,7 +481,11 @@ ticketsRouter.patch(
     try {
       const result = await prisma.$transaction(async (transaction) => {
         const existingTicket = await transaction.ticket.findFirst({
-          where: { id: ticketId },
+          where: {
+            ...(ticketId.toUpperCase().startsWith('TKT-')
+              ? { ticketNumber: ticketId.toUpperCase() }
+              : { id: ticketId }),
+          },
           select: { id: true, assigneeId: true },
         })
 
@@ -572,10 +589,14 @@ ticketsRouter.post(
     }
 
     try {
+      const ticketFilter = ticketId.toUpperCase().startsWith('TKT-')
+        ? { ticketNumber: ticketId.toUpperCase() }
+        : { id: ticketId }
+
       const result = await prisma.$transaction(async (transaction) => {
         const claim = await transaction.ticket.updateMany({
           where: {
-            id: ticketId,
+            ...ticketFilter,
             assigneeId: null,
             status: TicketStatus.open,
           },
@@ -584,7 +605,7 @@ ticketsRouter.post(
 
         if (claim.count === 0) {
           const existingTicket = await transaction.ticket.findFirst({
-            where: { id: ticketId },
+            where: ticketFilter,
             select: { id: true },
           })
 
@@ -593,9 +614,18 @@ ticketsRouter.post(
             : { kind: 'not_found' as const }
         }
 
+        const existingTicket = await transaction.ticket.findFirst({
+          where: ticketFilter,
+          select: { id: true },
+        })
+
+        if (!existingTicket) {
+          throw new Error('Claimed ticket could not be found')
+        }
+
         await transaction.auditLog.create({
           data: {
-            ticketId,
+            ticketId: existingTicket.id,
             userId: req.user!.id,
             action: 'ticket.claimed',
             details: JSON.stringify({ from: null, to: req.user!.id }),
@@ -603,7 +633,7 @@ ticketsRouter.post(
         })
 
         const ticket = await transaction.ticket.findFirst({
-          where: { id: ticketId },
+          where: { id: existingTicket.id },
           select: ticketSelect,
         })
 
@@ -690,7 +720,9 @@ ticketsRouter.post('/:ticketId/comments', authenticate, async (req, res) => {
   try {
     const ticket = await prisma.ticket.findFirst({
       where: {
-        id: ticketId,
+        ...(ticketId.toUpperCase().startsWith('TKT-')
+          ? { ticketNumber: ticketId.toUpperCase() }
+          : { id: ticketId }),
         ...(req.user!.role === UserRole.customer
           ? { customerId: req.user!.id }
           : req.user!.role === UserRole.agent

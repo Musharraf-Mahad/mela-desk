@@ -138,7 +138,7 @@ export function CustomerDashboardPage() {
                   >
                     <div className="min-w-0 pr-2">
                       <p className="text-xs font-semibold text-[#0F172A] truncate">
-                        #{ticket.id} · {ticket.subject}
+                        {ticket.ticketNumber || `#${ticket.id}`} · {ticket.subject}
                       </p>
                       <p className="text-[11px] text-slate-400 mt-0.5">
                         {new Date(ticket.updatedAt).toLocaleDateString(undefined, {
