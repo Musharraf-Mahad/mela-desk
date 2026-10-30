@@ -146,6 +146,7 @@ describe('ticket routes', () => {
           description: 'Please help',
           category: 'technical',
           priority: 'high',
+          ticketNumber: 'TKT-000001',
           customerId: customer.id,
         },
       }),
@@ -155,7 +156,7 @@ describe('ticket routes', () => {
         ticketId: 'ticket-1',
         userId: customer.id,
         action: 'ticket.created',
-        details: JSON.stringify({ category: 'technical', priority: 'high' }),
+        details: JSON.stringify({ ticketNumber: 'TKT-000001', category: 'technical', priority: 'high' }),
       },
     })
     expect(await response.json()).toEqual({
@@ -235,6 +236,7 @@ describe('ticket routes', () => {
         where: {
           status: 'open',
           OR: [
+            { ticketNumber: { contains: 'delivery delay' } },
             { subject: { contains: 'delivery delay' } },
             { description: { contains: 'delivery delay' } },
           ],
@@ -246,6 +248,7 @@ describe('ticket routes', () => {
       where: {
         status: 'open',
         OR: [
+          { ticketNumber: { contains: 'delivery delay' } },
           { subject: { contains: 'delivery delay' } },
           { description: { contains: 'delivery delay' } },
         ],
@@ -306,6 +309,7 @@ describe('ticket routes', () => {
       status: 'open',
       assigneeId: null,
       OR: [
+        { ticketNumber: { contains: 'delivery' } },
         { subject: { contains: 'delivery' } },
         { description: { contains: 'delivery' } },
       ],
@@ -994,5 +998,31 @@ describe('ticket routes', () => {
 
     expect(response.status).toBe(404)
     expect(transaction.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('allows retrieving a ticket using its public ticket number', async () => {
+    prismaMock.session.findFirst.mockResolvedValue({ user: customer })
+    prismaMock.ticket.findFirst.mockResolvedValue({
+      id: 'ticket-1',
+      ticketNumber: 'TKT-000001',
+      subject: 'Login issue',
+      comments: [],
+    })
+
+    const response = await fetch(`${baseUrl}/api/tickets/TKT-000001`, {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=customer-token` },
+    })
+
+    expect(response.status).toBe(200)
+    expect(prismaMock.ticket.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          ticketNumber: 'TKT-000001',
+          customerId: customer.id,
+        },
+      }),
+    )
+    const json = await response.json()
+    expect(json.data.ticket.ticketNumber).toBe('TKT-000001')
   })
 })

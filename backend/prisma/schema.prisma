@@ -39,20 +39,21 @@ model Session {
 }
 
 model Ticket {
-  id          String         @id @default(cuid())
-  customerId  String         @map("customer_id")
-  assigneeId  String?        @map("assignee_id")
-  subject     String         @db.VarChar(255)
-  description String         @db.Text
-  category    TicketCategory
-  priority    TicketPriority
-  status      TicketStatus   @default(open)
-  createdAt   DateTime       @default(now()) @map("created_at")
-  updatedAt   DateTime       @updatedAt @map("updated_at")
-  customer    User           @relation("TicketCustomer", fields: [customerId], references: [id], onDelete: Cascade)
-  assignee    User?          @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  comments    Comment[]
-  auditLogs   AuditLog[]
+  id           String         @id @default(cuid())
+  ticketNumber String         @unique @map("ticket_number") @db.VarChar(32)
+  customerId   String         @map("customer_id")
+  assigneeId   String?        @map("assignee_id")
+  subject      String         @db.VarChar(255)
+  description  String         @db.Text
+  category     TicketCategory
+  priority     TicketPriority
+  status       TicketStatus   @default(open)
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  customer     User           @relation("TicketCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  assignee     User?          @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  comments     Comment[]
+  auditLogs    AuditLog[]
 
   @@map("tickets")
   @@index([customerId])
@@ -60,6 +61,14 @@ model Ticket {
   @@index([status])
   @@index([category])
   @@index([priority])
+}
+
+model TicketCounter {
+  id        Int      @id @default(1)
+  lastValue Int      @default(0) @map("last_value")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("ticket_counters")
 }
 
 model Comment {
