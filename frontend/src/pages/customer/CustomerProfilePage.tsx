@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/common/Card';
 import { Input } from '../../components/common/Input';
@@ -8,6 +9,7 @@ import { authApi } from '../../api/auth.api';
 
 export function CustomerProfilePage() {
   const { user, updateUser } = useAuth();
+  const { t } = useTranslation();
 
   const [name, setName] = useState(user?.name || '');
   const [prevUserName, setPrevUserName] = useState(user?.name);
@@ -35,13 +37,13 @@ export function CustomerProfilePage() {
     try {
       const { user: updatedUser } = await authApi.updateProfile({ name: name.trim() });
       updateUser(updatedUser);
-      setSuccessMessage('Profile name updated successfully.');
+      setSuccessMessage(t('profile.profileUpdated', 'Profile name updated successfully.'));
       setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'message' in err
           ? String((err as { message: string }).message)
-          : 'Failed to update profile.';
+          : t('profile.profileUpdateFailed', 'Failed to update profile.');
       setErrorMessage(msg);
     } finally {
       setIsSavingProfile(false);
@@ -58,7 +60,7 @@ export function CustomerProfilePage() {
 
     try {
       const msg = await authApi.changePassword({ currentPassword, newPassword });
-      setSuccessMessage(msg || 'Password updated successfully. Please log in again.');
+      setSuccessMessage(msg || t('profile.passwordChanged', 'Password updated successfully. Please log in again.'));
       setCurrentPassword('');
       setNewPassword('');
       setTimeout(() => setSuccessMessage(null), 4000);
@@ -66,7 +68,7 @@ export function CustomerProfilePage() {
       const msg =
         err && typeof err === 'object' && 'message' in err
           ? String((err as { message: string }).message)
-          : 'Failed to change password. Make sure the current password is correct.';
+          : t('profile.passwordChangeFailed', 'Failed to change password. Make sure the current password is correct.');
       setErrorMessage(msg);
     } finally {
       setIsChangingPassword(false);
@@ -82,34 +84,34 @@ export function CustomerProfilePage() {
         {/* Profile Information */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Profile information</CardTitle>
+            <CardTitle>{t('profile.profileInformation', 'Profile information')}</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSaveProfile} className="space-y-4">
               <Input
-                label="Full name"
+                label={t('auth.fullName', 'Full name')}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
               />
 
               <Input
-                label="Email address"
+                label={t('auth.emailAddress', 'Email address')}
                 value={user?.email || ''}
                 disabled
-                helperText="Email address cannot be changed directly."
+                helperText={t('profile.emailFixedHelper', 'Email address cannot be changed directly.')}
               />
 
               <Input
-                label="Role"
-                value="Customer"
+                label={t('users.assignedRole', 'Role')}
+                value={t('roles.customer', 'Customer')}
                 disabled
-                helperText="Role permissions are assigned by administrator."
+                helperText={t('profile.roleFixedHelper', 'Role permissions are assigned by administrator.')}
               />
 
               <div className="pt-2">
                 <Button type="submit" isLoading={isSavingProfile} disabled={isSavingProfile}>
-                  Save Changes
+                  {t('common.saveChanges', 'Save Changes')}
                 </Button>
               </div>
             </form>
@@ -119,12 +121,12 @@ export function CustomerProfilePage() {
         {/* Change Password */}
         <Card>
           <CardHeader>
-            <CardTitle>Change password</CardTitle>
+            <CardTitle>{t('profile.changePassword', 'Change password')}</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleUpdatePassword} className="space-y-4">
               <Input
-                label="Current password"
+                label={t('profile.currentPassword', 'Current password')}
                 type="password"
                 placeholder="••••••••"
                 value={currentPassword}
@@ -133,12 +135,12 @@ export function CustomerProfilePage() {
               />
 
               <Input
-                label="New password"
+                label={t('profile.newPassword', 'New password')}
                 type="password"
-                placeholder="At least 12 characters"
+                placeholder={t('auth.passwordLengthPlaceholder', 'At least 12 characters')}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                helperText="Must be between 12 and 128 characters."
+                helperText={t('auth.passwordLengthHelper', 'Must be between 12 and 128 characters.')}
                 required
               />
 
@@ -150,7 +152,7 @@ export function CustomerProfilePage() {
                 isLoading={isChangingPassword}
                 disabled={isChangingPassword}
               >
-                Update Password
+                {t('profile.updatePassword', 'Update Password')}
               </Button>
             </form>
           </CardContent>

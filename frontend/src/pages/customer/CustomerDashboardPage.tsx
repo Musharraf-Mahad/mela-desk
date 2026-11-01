@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { StatCard } from '../../components/common/StatCard';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/common/Card';
 import { StatusBadge } from '../../components/common/Badge';
@@ -9,6 +10,7 @@ import { Ticket as TicketIcon, Clock, CheckCircle2, AlertCircle } from 'lucide-r
 
 export function CustomerDashboardPage() {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -46,12 +48,22 @@ export function CustomerDashboardPage() {
   const resolvedCount = tickets.filter((t) => t.status === 'resolved').length;
   const recentTickets = tickets.slice(0, 4);
 
+  const daysData = [
+    { key: 'mon', label: t('dashboard.days.mon', 'Mon'), h: 'h-24', active: false },
+    { key: 'tue', label: t('dashboard.days.tue', 'Tue'), h: 'h-36', active: true },
+    { key: 'wed', label: t('dashboard.days.wed', 'Wed'), h: 'h-16', active: false },
+    { key: 'thu', label: t('dashboard.days.thu', 'Thu'), h: 'h-40', active: true },
+    { key: 'fri', label: t('dashboard.days.fri', 'Fri'), h: 'h-20', active: false },
+    { key: 'sat', label: t('dashboard.days.sat', 'Sat'), h: 'h-44', active: true },
+    { key: 'sun', label: t('dashboard.days.sun', 'Sun'), h: 'h-32', active: false },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Overview Greeting */}
       <div>
         <p className="text-sm font-medium text-[#64748B]">
-          Good morning! Here's your overview.
+          {t('dashboard.greeting', "Good morning! Here's your overview.")}
         </p>
       </div>
 
@@ -64,22 +76,22 @@ export function CustomerDashboardPage() {
       {/* 4 Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="My Tickets"
+          title={t('dashboard.stats.myTickets', 'My Tickets')}
           value={isLoading ? '...' : String(totalCount)}
           icon={<TicketIcon className="w-5 h-5 text-blue-500" />}
         />
         <StatCard
-          title="Open Tickets"
+          title={t('dashboard.stats.openTickets', 'Open Tickets')}
           value={isLoading ? '...' : String(openCount)}
           icon={<AlertCircle className="w-5 h-5 text-blue-500" />}
         />
         <StatCard
-          title="In Progress"
+          title={t('dashboard.stats.inProgress', 'In Progress')}
           value={isLoading ? '...' : String(inProgressCount)}
           icon={<Clock className="w-5 h-5 text-amber-500" />}
         />
         <StatCard
-          title="Resolved"
+          title={t('dashboard.stats.resolved', 'Resolved')}
           value={isLoading ? '...' : String(resolvedCount)}
           icon={<CheckCircle2 className="w-5 h-5 text-emerald-500" />}
         />
@@ -90,19 +102,11 @@ export function CustomerDashboardPage() {
         {/* Ticket Activity Visual */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Ticket activity</CardTitle>
+            <CardTitle>{t('dashboard.ticketActivity', 'Ticket activity')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-48 flex items-end justify-between px-4 sm:px-8 pt-6 pb-2">
-              {[
-                { label: 'Mon', h: 'h-24', active: false },
-                { label: 'Tue', h: 'h-36', active: true },
-                { label: 'Wed', h: 'h-16', active: false },
-                { label: 'Thu', h: 'h-40', active: true },
-                { label: 'Fri', h: 'h-20', active: false },
-                { label: 'Sat', h: 'h-44', active: true },
-                { label: 'Sun', h: 'h-32', active: false },
-              ].map((bar, i) => (
+              {daysData.map((bar, i) => (
                 <div key={i} className="flex flex-col items-center gap-2 group">
                   <div
                     className={`w-7 sm:w-10 rounded-t-md transition-all ${bar.h} ${
@@ -121,13 +125,17 @@ export function CustomerDashboardPage() {
         {/* Recent Activity List */}
         <Card>
           <CardHeader>
-            <CardTitle>Recent activity</CardTitle>
+            <CardTitle>{t('dashboard.recentActivity', 'Recent activity')}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="py-6 text-center text-xs text-slate-400">Loading recent tickets...</div>
+              <div className="py-6 text-center text-xs text-slate-400">
+                {t('dashboard.loadingRecent', 'Loading recent tickets...')}
+              </div>
             ) : recentTickets.length === 0 ? (
-              <div className="py-6 text-center text-xs text-slate-400">No tickets recorded yet.</div>
+              <div className="py-6 text-center text-xs text-slate-400">
+                {t('dashboard.noRecentTickets', 'No tickets recorded yet.')}
+              </div>
             ) : (
               <div className="space-y-3">
                 {recentTickets.map((ticket) => (
@@ -141,7 +149,7 @@ export function CustomerDashboardPage() {
                         {ticket.ticketNumber || `#${ticket.id}`} · {ticket.subject}
                       </p>
                       <p className="text-[11px] text-slate-400 mt-0.5">
-                        {new Date(ticket.updatedAt).toLocaleDateString(undefined, {
+                        {new Date(ticket.updatedAt).toLocaleDateString(i18n.language === 'am' ? 'am-ET' : 'en-US', {
                           month: 'short',
                           day: 'numeric',
                         })}

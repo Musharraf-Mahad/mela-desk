@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { StatCard } from '../../components/common/StatCard';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/common/Card';
 import { StatusBadge } from '../../components/common/Badge';
@@ -9,6 +10,7 @@ import { Inbox, UserCheck, Clock, CheckCircle2 } from 'lucide-react';
 
 export function SupportDashboardPage() {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
 
   const [assignedTickets, setAssignedTickets] = useState<Ticket[]>([]);
   const [unassignedTotal, setUnassignedTotal] = useState<number>(0);
@@ -51,12 +53,22 @@ export function SupportDashboardPage() {
   const resolvedCount = assignedTickets.filter((t) => t.status === 'resolved').length;
   const recentAssigned = assignedTickets.slice(0, 4);
 
+  const daysData = [
+    { key: 'mon', label: t('dashboard.days.mon', 'Mon'), h: 'h-24', active: false },
+    { key: 'tue', label: t('dashboard.days.tue', 'Tue'), h: 'h-36', active: true },
+    { key: 'wed', label: t('dashboard.days.wed', 'Wed'), h: 'h-16', active: false },
+    { key: 'thu', label: t('dashboard.days.thu', 'Thu'), h: 'h-40', active: true },
+    { key: 'fri', label: t('dashboard.days.fri', 'Fri'), h: 'h-20', active: false },
+    { key: 'sat', label: t('dashboard.days.sat', 'Sat'), h: 'h-44', active: true },
+    { key: 'sun', label: t('dashboard.days.sun', 'Sun'), h: 'h-32', active: false },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Overview Greeting */}
       <div>
         <p className="text-sm font-medium text-[#64748B]">
-          Good morning! Here's your overview.
+          {t('dashboard.greeting', "Good morning! Here's your overview.")}
         </p>
       </div>
 
@@ -69,22 +81,22 @@ export function SupportDashboardPage() {
       {/* 4 Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Open"
+          title={t('dashboard.stats.open', 'Open')}
           value={isLoading ? '...' : String(openAssignedCount)}
           icon={<Inbox className="w-5 h-5 text-blue-500" />}
         />
         <StatCard
-          title="Unassigned"
+          title={t('dashboard.stats.unassigned', 'Unassigned')}
           value={isLoading ? '...' : String(unassignedTotal)}
           icon={<UserCheck className="w-5 h-5 text-orange-500" />}
         />
         <StatCard
-          title="In Progress"
+          title={t('dashboard.stats.inProgress', 'In Progress')}
           value={isLoading ? '...' : String(inProgressCount)}
           icon={<Clock className="w-5 h-5 text-amber-500" />}
         />
         <StatCard
-          title="Resolved"
+          title={t('dashboard.stats.resolved', 'Resolved')}
           value={isLoading ? '...' : String(resolvedCount)}
           icon={<CheckCircle2 className="w-5 h-5 text-emerald-500" />}
         />
@@ -94,19 +106,11 @@ export function SupportDashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Ticket activity</CardTitle>
+            <CardTitle>{t('dashboard.ticketActivity', 'Ticket activity')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-48 flex items-end justify-between px-4 sm:px-8 pt-6 pb-2">
-              {[
-                { label: 'Mon', h: 'h-24', active: false },
-                { label: 'Tue', h: 'h-36', active: true },
-                { label: 'Wed', h: 'h-16', active: false },
-                { label: 'Thu', h: 'h-40', active: true },
-                { label: 'Fri', h: 'h-20', active: false },
-                { label: 'Sat', h: 'h-44', active: true },
-                { label: 'Sun', h: 'h-32', active: false },
-              ].map((bar, i) => (
+              {daysData.map((bar, i) => (
                 <div key={i} className="flex flex-col items-center gap-2 group">
                   <div
                     className={`w-7 sm:w-10 rounded-t-md transition-all ${bar.h} ${
@@ -124,13 +128,17 @@ export function SupportDashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent activity</CardTitle>
+            <CardTitle>{t('dashboard.recentActivity', 'Recent activity')}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="py-6 text-center text-xs text-slate-400">Loading recent tickets...</div>
+              <div className="py-6 text-center text-xs text-slate-400">
+                {t('dashboard.loadingRecent', 'Loading recent tickets...')}
+              </div>
             ) : recentAssigned.length === 0 ? (
-              <div className="py-6 text-center text-xs text-slate-400">No assigned tickets.</div>
+              <div className="py-6 text-center text-xs text-slate-400">
+                {t('dashboard.noAssignedTickets', 'No assigned tickets.')}
+              </div>
             ) : (
               <div className="space-y-3">
                 {recentAssigned.map((ticket) => (
@@ -144,7 +152,7 @@ export function SupportDashboardPage() {
                         {ticket.ticketNumber || `#${ticket.id}`} · {ticket.subject}
                       </p>
                       <p className="text-[11px] text-slate-400 mt-0.5">
-                        {new Date(ticket.updatedAt).toLocaleDateString(undefined, {
+                        {new Date(ticket.updatedAt).toLocaleDateString(i18n.language === 'am' ? 'am-ET' : 'en-US', {
                           month: 'short',
                           day: 'numeric',
                         })}

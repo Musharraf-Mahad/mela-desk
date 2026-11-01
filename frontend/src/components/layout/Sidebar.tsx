@@ -1,8 +1,8 @@
 import { NavLink } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { X } from 'lucide-react';
 import type { UserRole } from '../../types/auth';
-
 
 interface NavItem {
   label: string;
@@ -16,31 +16,32 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { role } = useAuth();
+  const { t } = useTranslation();
 
   const getNavItems = (currentRole: UserRole | null): NavItem[] => {
     switch (currentRole) {
       case 'agent':
         return [
-          { label: 'Support Dashboard', path: '/agent/dashboard' },
-          { label: 'Support Queue', path: '/agent/queue' },
-          { label: 'Assigned Tickets', path: '/agent/assigned' },
-          { label: 'Profile & Settings', path: '/agent/profile' },
+          { label: t('nav.supportDashboard', 'Support Dashboard'), path: '/agent/dashboard' },
+          { label: t('nav.supportQueue', 'Support Queue'), path: '/agent/queue' },
+          { label: t('nav.assignedTickets', 'Assigned Tickets'), path: '/agent/assigned' },
+          { label: t('nav.profileSettings', 'Profile & Settings'), path: '/agent/profile' },
         ];
       case 'admin':
         return [
-          { label: 'Admin Dashboard', path: '/admin/dashboard' },
-          { label: 'All Tickets', path: '/admin/tickets' },
-          { label: 'Users & Agents', path: '/admin/users' },
-          { label: 'Reports', path: '/admin/reports' },
-          { label: 'System Settings', path: '/admin/settings' },
+          { label: t('nav.adminDashboard', 'Admin Dashboard'), path: '/admin/dashboard' },
+          { label: t('nav.allTickets', 'All Tickets'), path: '/admin/tickets' },
+          { label: t('nav.usersAndAgents', 'Users & Agents'), path: '/admin/users' },
+          { label: t('nav.reports', 'Reports'), path: '/admin/reports' },
+          { label: t('nav.systemSettings', 'System Settings'), path: '/admin/settings' },
         ];
       case 'customer':
       default:
         return [
-          { label: 'Dashboard', path: '/customer/dashboard' },
-          { label: 'My Tickets', path: '/customer/tickets' },
-          { label: 'Create Ticket', path: '/customer/create-ticket' },
-          { label: 'Profile & Settings', path: '/customer/profile' },
+          { label: t('nav.dashboard', 'Dashboard'), path: '/customer/dashboard' },
+          { label: t('nav.myTickets', 'My Tickets'), path: '/customer/tickets' },
+          { label: t('nav.createTicket', 'Create Ticket'), path: '/customer/create-ticket' },
+          { label: t('nav.profileSettings', 'Profile & Settings'), path: '/customer/profile' },
         ];
     }
   };
@@ -53,13 +54,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className="h-16 px-6 flex items-center justify-between border-b border-[#E2E8F0] shrink-0">
         <NavLink to="/" className="flex items-center gap-2.5">
           <span className="w-3.5 h-3.5 bg-[#2563EB] rounded-xs inline-block" />
-          <span className="text-lg font-bold text-[#0F172A] tracking-tight">MelaDesk</span>
+          <span className="text-lg font-bold text-[#0F172A] tracking-tight">{t('app.name', 'MelaDesk')}</span>
         </NavLink>
         <button
           type="button"
           onClick={onClose}
           className="md:hidden text-slate-400 hover:text-slate-600 p-1"
-          aria-label="Close sidebar"
+          aria-label={t('common.close', 'Close')}
         >
           <X className="w-5 h-5" />
         </button>
@@ -94,14 +95,17 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         ))}
       </nav>
 
-
       {/* Role Footer Info */}
       <div className="p-4 border-t border-[#E2E8F0] bg-slate-50/50">
         <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 mb-0.5">
-          Workspace View
+          {t('nav.workspaceView', 'Workspace View')}
         </p>
         <p className="text-xs font-medium text-slate-700 capitalize">
-          {role === 'admin' ? 'Administrator' : role === 'agent' ? 'Support Agent' : 'Customer'}
+          {role === 'admin'
+            ? t('roles.admin', 'Administrator')
+            : role === 'agent'
+            ? t('roles.agent', 'Support Agent')
+            : t('roles.customer', 'Customer')}
         </p>
       </div>
     </div>
