@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
@@ -23,6 +24,7 @@ import { Search, UserCheck } from 'lucide-react';
 export function SupportQueuePage() {
   const navigate = useNavigate();
   const { role } = useAuth();
+  const { t, i18n } = useTranslation();
 
   const isAdmin = role === 'admin';
 
@@ -86,9 +88,8 @@ export function SupportQueuePage() {
 
     try {
       await ticketApi.claimTicket(ticketId);
-      setSuccessMessage(`Ticket #${ticketId} claimed successfully!`);
+      setSuccessMessage(t('tickets.claimedSuccessWithId', { id: ticketId, defaultValue: `Ticket #${ticketId} claimed successfully!` }));
       setIsLoading(true);
-      // Trigger refresh by updating appliedSearch or reloading
       const params = {
         priority: priorityFilter === 'all' ? undefined : (priorityFilter as TicketPriority),
         category: categoryFilter === 'all' ? undefined : (categoryFilter as TicketCategory),
@@ -118,12 +119,14 @@ export function SupportQueuePage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] tracking-tight">
-          {isAdmin ? 'All Tickets Directory' : 'Support Queue'}
+          {isAdmin
+            ? t('queue.allTicketsDirectory', 'All Tickets Directory')
+            : t('queue.supportQueue', 'Support Queue')}
         </h2>
         <p className="text-sm text-[#64748B] mt-0.5">
           {isAdmin
-            ? 'Browse and manage all customer tickets across the organization.'
-            : 'Unassigned tickets available for support agents to review and claim.'}
+            ? t('queue.allTicketsDesc', 'Browse and manage all customer tickets across the organization.')
+            : t('queue.supportQueueDesc', 'Unassigned tickets available for support agents to review and claim.')}
         </p>
       </div>
 
@@ -135,15 +138,15 @@ export function SupportQueuePage() {
         className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end bg-white p-4 rounded-xl border border-[#E2E8F0] shadow-2xs"
       >
         <Input
-          label="Search"
-          placeholder="Search by ticket #, subject or description"
+          label={t('common.search', 'Search')}
+          placeholder={t('tickets.searchPlaceholder', 'Search by ticket #, subject or description')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           leftIcon={<Search className="w-4 h-4" />}
         />
 
         <Select
-          label="Category"
+          label={t('tickets.category', 'Category')}
           value={categoryFilter}
           onChange={(e) => {
             setCategoryFilter(e.target.value);
@@ -151,17 +154,17 @@ export function SupportQueuePage() {
             setPage(1);
           }}
           options={[
-            { value: 'all', label: 'All Categories' },
-            { value: 'account', label: 'Account' },
-            { value: 'billing', label: 'Billing' },
-            { value: 'technical', label: 'Technical' },
-            { value: 'orders', label: 'Orders' },
-            { value: 'general', label: 'General' },
+            { value: 'all', label: t('categories.all', 'All Categories') },
+            { value: 'account', label: t('categories.accountShort', 'Account') },
+            { value: 'billing', label: t('categories.billingShort', 'Billing') },
+            { value: 'technical', label: t('categories.technicalShort', 'Technical') },
+            { value: 'orders', label: t('categories.ordersShort', 'Orders') },
+            { value: 'general', label: t('categories.generalShort', 'General') },
           ]}
         />
 
         <Select
-          label="Priority"
+          label={t('tickets.priority', 'Priority')}
           value={priorityFilter}
           onChange={(e) => {
             setPriorityFilter(e.target.value);
@@ -169,17 +172,17 @@ export function SupportQueuePage() {
             setPage(1);
           }}
           options={[
-            { value: 'all', label: 'All Priorities' },
-            { value: 'low', label: 'Low' },
-            { value: 'normal', label: 'Normal' },
-            { value: 'high', label: 'High' },
-            { value: 'urgent', label: 'Urgent' },
+            { value: 'all', label: t('priority.all', 'All Priorities') },
+            { value: 'low', label: t('priority.low', 'Low') },
+            { value: 'normal', label: t('priority.normal', 'Normal') },
+            { value: 'high', label: t('priority.high', 'High') },
+            { value: 'urgent', label: t('priority.urgent', 'Urgent') },
           ]}
         />
 
         <div>
           <Button type="submit" className="w-full justify-center">
-            Filter
+            {t('common.filter', 'Filter')}
           </Button>
         </div>
       </form>
@@ -188,26 +191,28 @@ export function SupportQueuePage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Ticket ID</TableHead>
-              <TableHead>Subject</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Priority</TableHead>
-              <TableHead>Updated</TableHead>
-              {!isAdmin && <TableHead className="text-right">Action</TableHead>}
+              <TableHead>{t('tickets.ticketId', 'Ticket ID')}</TableHead>
+              <TableHead>{t('tickets.subject', 'Subject')}</TableHead>
+              <TableHead>{t('tickets.customer', 'Customer')}</TableHead>
+              <TableHead>{t('tickets.status', 'Status')}</TableHead>
+              <TableHead>{t('tickets.priority', 'Priority')}</TableHead>
+              <TableHead>{t('tickets.updated', 'Updated')}</TableHead>
+              {!isAdmin && <TableHead className="text-right">{t('common.action', 'Action')}</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
                 <TableCell colSpan={isAdmin ? 6 : 7} className="text-center py-8 text-slate-400">
-                  Loading tickets...
+                  {t('tickets.loadingTickets', 'Loading tickets...')}
                 </TableCell>
               </TableRow>
             ) : tickets.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={isAdmin ? 6 : 7} className="text-center py-8 text-slate-400">
-                  {isAdmin ? 'No tickets found.' : 'The support queue is empty. Great job!'}
+                  {isAdmin
+                    ? t('tickets.noTicketsFound', 'No tickets found.')
+                    : t('queue.queueEmpty', 'The support queue is empty. Great job!')}
                 </TableCell>
               </TableRow>
             ) : (
@@ -231,7 +236,7 @@ export function SupportQueuePage() {
                     <span className="font-medium text-slate-800">{ticket.subject}</span>
                   </TableCell>
                   <TableCell className="text-xs text-slate-600">
-                    {ticket.customer?.name || 'Customer'}
+                    {ticket.customer?.name || t('common.customer', 'Customer')}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={ticket.status} />
@@ -240,7 +245,7 @@ export function SupportQueuePage() {
                     <PriorityBadge priority={ticket.priority} />
                   </TableCell>
                   <TableCell className="text-xs text-[#64748B]">
-                    {new Date(ticket.updatedAt).toLocaleDateString(undefined, {
+                    {new Date(ticket.updatedAt).toLocaleDateString(i18n.language === 'am' ? 'am-ET' : 'en-US', {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',
@@ -256,7 +261,7 @@ export function SupportQueuePage() {
                         disabled={actionLoadingId === ticket.id}
                         onClick={(e) => handleClaimTicket(e, ticket.id)}
                       >
-                        Claim
+                        {t('queue.claim', 'Claim')}
                       </Button>
                     </TableCell>
                   )}
@@ -270,7 +275,12 @@ export function SupportQueuePage() {
       {pagination.totalPages > 1 && (
         <div className="flex items-center justify-between px-2 text-sm text-slate-500">
           <div>
-            Showing page {pagination.page} of {pagination.totalPages} ({pagination.total} tickets total)
+            {t('common.showingTicketsPagination', {
+              page: pagination.page,
+              totalPages: pagination.totalPages,
+              total: pagination.total,
+              defaultValue: `Showing page ${pagination.page} of ${pagination.totalPages} (${pagination.total} tickets total)`,
+            })}
           </div>
           <div className="flex gap-2">
             <Button
@@ -282,7 +292,7 @@ export function SupportQueuePage() {
                 setPage((p) => Math.max(1, p - 1));
               }}
             >
-              Previous
+              {t('common.previous', 'Previous')}
             </Button>
             <Button
               size="sm"
@@ -293,7 +303,7 @@ export function SupportQueuePage() {
                 setPage((p) => p + 1);
               }}
             >
-              Next
+              {t('common.next', 'Next')}
             </Button>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
 import { Textarea } from '../../components/common/Textarea';
@@ -11,6 +12,7 @@ import type { TicketCategory, TicketPriority } from '../../types/ticket';
 
 export function CreateTicketPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [subject, setSubject] = useState('');
   const [category, setCategory] = useState<TicketCategory>('technical');
@@ -41,7 +43,7 @@ export function CreateTicketPage() {
       const msg =
         err && typeof err === 'object' && 'message' in err
           ? String((err as { message: string }).message)
-          : 'Failed to create ticket. Please check your inputs.';
+          : t('tickets.unableToRetrieve', 'Failed to create ticket. Please check your inputs.');
       setError(msg);
     } finally {
       setIsLoading(false);
@@ -52,18 +54,18 @@ export function CreateTicketPage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] tracking-tight">
-          New support ticket
+          {t('tickets.newSupportTicket', 'New support ticket')}
         </h2>
         <p className="text-sm text-[#64748B] mt-0.5">
-          Submit details about your issue to our customer care team.
+          {t('tickets.newSupportTicketDesc', 'Submit details about your issue to our customer care team.')}
         </p>
       </div>
 
       {error && <Alert type="error">{error}</Alert>}
 
       {success && (
-        <Alert type="success" title="Ticket Submitted Successfully">
-          Your ticket has been recorded. Redirecting to your ticket details...
+        <Alert type="success" title={t('tickets.ticketSubmittedTitle', 'Ticket Submitted Successfully')}>
+          {t('tickets.ticketSubmittedDesc', 'Your ticket has been recorded. Redirecting to your ticket details...')}
         </Alert>
       )}
 
@@ -73,41 +75,41 @@ export function CreateTicketPage() {
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit} className="space-y-5">
               <Input
-                label="Subject"
-                placeholder="Briefly summarize your issue"
+                label={t('tickets.subject', 'Subject')}
+                placeholder={t('tickets.subjectPlaceholder', 'Briefly summarize your issue')}
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 required
               />
 
               <Select
-                label="Category"
+                label={t('tickets.category', 'Category')}
                 value={category}
                 onChange={(e) => setCategory(e.target.value as TicketCategory)}
                 options={[
-                  { value: 'account', label: 'Account Access' },
-                  { value: 'billing', label: 'Billing & Payments' },
-                  { value: 'technical', label: 'Technical Issue' },
-                  { value: 'orders', label: 'Orders' },
-                  { value: 'general', label: 'General Question' },
+                  { value: 'account', label: t('categories.account', 'Account Access') },
+                  { value: 'billing', label: t('categories.billing', 'Billing & Payments') },
+                  { value: 'technical', label: t('categories.technical', 'Technical Issue') },
+                  { value: 'orders', label: t('categories.orders', 'Orders & Deliveries') },
+                  { value: 'general', label: t('categories.general', 'General Question') },
                 ]}
               />
 
               <Select
-                label="Priority"
+                label={t('tickets.priority', 'Priority')}
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as TicketPriority)}
                 options={[
-                  { value: 'low', label: 'Low' },
-                  { value: 'normal', label: 'Normal' },
-                  { value: 'high', label: 'High' },
-                  { value: 'urgent', label: 'Urgent' },
+                  { value: 'low', label: t('priority.low', 'Low') },
+                  { value: 'normal', label: t('priority.normal', 'Normal') },
+                  { value: 'high', label: t('priority.high', 'High') },
+                  { value: 'urgent', label: t('priority.urgent', 'Urgent') },
                 ]}
               />
 
               <Textarea
-                label="Description"
-                placeholder="Describe the issue and expected result"
+                label={t('tickets.description', 'Description')}
+                placeholder={t('tickets.descriptionPlaceholder', 'Describe the issue and expected result')}
                 rows={5}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -116,7 +118,7 @@ export function CreateTicketPage() {
 
               <div className="flex items-center gap-3 pt-3">
                 <Button type="submit" isLoading={isLoading} disabled={isLoading || success}>
-                  Submit Ticket
+                  {t('tickets.submitTicket', 'Submit Ticket')}
                 </Button>
                 <Button
                   type="button"
@@ -124,7 +126,7 @@ export function CreateTicketPage() {
                   onClick={() => navigate('/customer/tickets')}
                   disabled={isLoading}
                 >
-                  Cancel
+                  {t('common.cancel', 'Cancel')}
                 </Button>
               </div>
             </form>
@@ -134,11 +136,13 @@ export function CreateTicketPage() {
         {/* Helpful Tips Sidebar */}
         <Card>
           <CardContent className="pt-6 space-y-4">
-            <h4 className="font-semibold text-sm text-[#0F172A]">Tips for faster resolution</h4>
+            <h4 className="font-semibold text-sm text-[#0F172A]">
+              {t('tickets.tipsTitle', 'Tips for faster resolution')}
+            </h4>
             <ul className="text-xs text-slate-600 space-y-2 list-disc pl-4 leading-relaxed">
-              <li>Provide clear error messages or error codes if visible.</li>
-              <li>Explain what you were attempting to do when the issue occurred.</li>
-              <li>Select the category that best matches your problem.</li>
+              <li>{t('tickets.tip1', 'Provide clear error messages or error codes if visible.')}</li>
+              <li>{t('tickets.tip2', 'Explain what you were attempting to do when the issue occurred.')}</li>
+              <li>{t('tickets.tip3', 'Select the category that best matches your problem.')}</li>
             </ul>
           </CardContent>
         </Card>

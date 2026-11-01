@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/common/Card';
 import { Textarea } from '../../components/common/Textarea';
 import { Select } from '../../components/common/Select';
@@ -16,6 +17,7 @@ export function TicketWorkspacePage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [ticketStatus, setTicketStatus] = useState<TicketStatus>('open');
@@ -49,7 +51,7 @@ export function TicketWorkspacePage() {
         }
       } catch (err: unknown) {
         if (isMounted) {
-          setErrorMessage(err instanceof Error ? err.message : 'Unable to retrieve ticket details');
+          setErrorMessage(err instanceof Error ? err.message : t('tickets.unableToRetrieve', 'Unable to retrieve ticket details'));
         }
       } finally {
         if (isMounted) {
@@ -60,7 +62,7 @@ export function TicketWorkspacePage() {
     return () => {
       isMounted = false;
     };
-  }, [id, refreshTrigger]);
+  }, [id, refreshTrigger, t]);
 
   useEffect(() => {
     if (user?.role === 'admin') {
@@ -81,7 +83,7 @@ export function TicketWorkspacePage() {
     try {
       await ticketApi.addComment(id, replyText.trim(), false);
       setReplyText('');
-      setFeedbackMessage('Public reply sent to customer.');
+      setFeedbackMessage(t('tickets.replySent', 'Public reply sent to customer.'));
       setRefreshTrigger((r) => r + 1);
       setTimeout(() => setFeedbackMessage(null), 3500);
     } catch (err: unknown) {
@@ -102,7 +104,7 @@ export function TicketWorkspacePage() {
     try {
       await ticketApi.addComment(id, internalNoteText.trim(), true);
       setInternalNoteText('');
-      setFeedbackMessage('Internal note added (hidden from customer).');
+      setFeedbackMessage(t('tickets.internalNoteSaved', 'Internal note added (hidden from customer).'));
       setRefreshTrigger((r) => r + 1);
       setTimeout(() => setFeedbackMessage(null), 3500);
     } catch (err: unknown) {
@@ -123,7 +125,12 @@ export function TicketWorkspacePage() {
       const updated = await ticketApi.updateStatus(id, newStatus);
       setTicketStatus(updated.status);
       setTicket((prev) => (prev ? { ...prev, status: updated.status } : null));
-      setFeedbackMessage(`Status updated to ${newStatus.replace('_', ' ')}.`);
+      setFeedbackMessage(
+        t('tickets.statusUpdated', {
+          status: t(`status.${newStatus}`, newStatus.replace('_', ' ')),
+          defaultValue: `Status updated to ${newStatus.replace('_', ' ')}.`,
+        })
+      );
       setTimeout(() => setFeedbackMessage(null), 3500);
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to update ticket status');
@@ -139,7 +146,7 @@ export function TicketWorkspacePage() {
     try {
       const updated = await ticketApi.claimTicket(id);
       setTicket(updated);
-      setFeedbackMessage('Ticket claimed successfully!');
+      setFeedbackMessage(t('tickets.claimedSuccess', 'Ticket claimed successfully!'));
       setTimeout(() => setFeedbackMessage(null), 3500);
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to claim ticket');
@@ -155,7 +162,7 @@ export function TicketWorkspacePage() {
       const updated = await ticketApi.assignTicket(id, assigneeParam);
       setTicket(updated);
       setSelectedAssignee(newAssigneeId);
-      setFeedbackMessage('Ticket assignment updated.');
+      setFeedbackMessage(t('tickets.assignmentUpdated', 'Ticket assignment updated.'));
       setTimeout(() => setFeedbackMessage(null), 3500);
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to assign ticket');
@@ -166,7 +173,7 @@ export function TicketWorkspacePage() {
     return (
       <div className="py-16 text-center text-slate-500">
         <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        Loading ticket workspace...
+        {t('tickets.loadingWorkspace', 'Loading ticket workspace...')}
       </div>
     );
   }
@@ -176,7 +183,7 @@ export function TicketWorkspacePage() {
       <div className="space-y-4">
         <Alert type="error">{errorMessage}</Alert>
         <Button variant="secondary" onClick={() => navigate(-1)}>
-          Go Back
+          {t('common.goBack', 'Go Back')}
         </Button>
       </div>
     );
@@ -202,7 +209,11 @@ export function TicketWorkspacePage() {
             {ticket.ticketNumber || `#${ticket.id}`} · {ticket.subject}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Created on {new Date(ticket.createdAt).toLocaleDateString()} by {ticket.customer?.name}
+            {t('tickets.createdOnBy', {
+              date: new Date(ticket.createdAt).toLocaleDateString(i18n.language === 'am' ? 'am-ET' : 'en-US'),
+              customer: ticket.customer?.name || t('common.customer', 'Customer'),
+              defaultValue: `Created on ${new Date(ticket.createdAt).toLocaleDateString()} by ${ticket.customer?.name}`,
+            })}
           </p>
         </div>
 
@@ -213,7 +224,7 @@ export function TicketWorkspacePage() {
             disabled={isClaiming}
             leftIcon={<UserCheck className="w-4 h-4" />}
           >
-            Claim Ticket
+            {t('tickets.claimTicket', 'Claim Ticket')}
           </Button>
         )}
       </div>
@@ -226,17 +237,17 @@ export function TicketWorkspacePage() {
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Conversation</CardTitle>
+              <CardTitle>{t('tickets.conversation', 'Conversation')}</CardTitle>
             </CardHeader>
             <CardContent>
               {/* Ticket Initial Description */}
               <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 mb-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-[#0F172A]">
-                    Customer · {ticket.customer?.name}
+                    {t('common.customer', 'Customer')} · {ticket.customer?.name}
                   </span>
                   <span className="text-[11px] text-slate-400">
-                    {new Date(ticket.createdAt).toLocaleString([], {
+                    {new Date(ticket.createdAt).toLocaleString(i18n.language === 'am' ? 'am-ET' : 'en-US', {
                       month: 'short',
                       day: 'numeric',
                       hour: '2-digit',
@@ -270,16 +281,16 @@ export function TicketWorkspacePage() {
                         <span className="text-xs font-semibold text-[#0F172A] flex items-center gap-1.5">
                           {isInternal ? (
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                              <Lock className="w-3 h-3" /> Private Internal Note
+                              <Lock className="w-3 h-3" /> {t('tickets.privateInternalNote', 'Private Internal Note')}
                             </span>
                           ) : (
                             <span>
-                              {isStaff ? 'Staff' : 'Customer'} · {comment.author?.name}
+                              {isStaff ? t('common.staff', 'Staff') : t('common.customer', 'Customer')} · {comment.author?.name}
                             </span>
                           )}
                         </span>
                         <span className="text-[11px] text-slate-400">
-                          {new Date(comment.createdAt).toLocaleTimeString([], {
+                          {new Date(comment.createdAt).toLocaleTimeString(i18n.language === 'am' ? 'am-ET' : 'en-US', {
                             hour: '2-digit',
                             minute: '2-digit',
                           })}
@@ -296,8 +307,8 @@ export function TicketWorkspacePage() {
               {/* Public Reply Input */}
               <form onSubmit={handleSendPublicReply} className="mt-6 pt-6 border-t border-[#E2E8F0] space-y-4">
                 <Textarea
-                  label="Public Reply"
-                  placeholder="Write a message visible to the customer..."
+                  label={t('tickets.publicReply', 'Public Reply')}
+                  placeholder={t('tickets.replyPlaceholder', 'Write a message visible to the customer...')}
                   rows={3}
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
@@ -305,7 +316,7 @@ export function TicketWorkspacePage() {
                 />
                 <div>
                   <Button type="submit" isLoading={isSubmittingReply} disabled={isSubmittingReply}>
-                    Send Reply
+                    {t('tickets.sendReply', 'Send Reply')}
                   </Button>
                 </div>
               </form>
@@ -317,34 +328,34 @@ export function TicketWorkspacePage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Ticket details</CardTitle>
+              <CardTitle>{t('tickets.ticketDetails', 'Ticket details')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3.5 text-xs sm:text-sm">
                 <div>
-                  <span className="text-slate-400 block text-xs">Customer</span>
+                  <span className="text-slate-400 block text-xs">{t('tickets.customer', 'Customer')}</span>
                   <span className="font-semibold text-[#0F172A]">
-                    {ticket.customer?.name || 'Customer'}
+                    {ticket.customer?.name || t('common.customer', 'Customer')}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-xs">Category</span>
-                  <span className="font-medium text-slate-700 capitalize">
-                    {ticket.category}
+                  <span className="text-slate-400 block text-xs">{t('tickets.category', 'Category')}</span>
+                  <span className="font-medium text-slate-700">
+                    {t(`categories.${ticket.category}`, ticket.category)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-xs mb-1">Status</span>
+                  <span className="text-slate-400 block text-xs mb-1">{t('tickets.status', 'Status')}</span>
                   <StatusBadge status={ticketStatus} />
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-xs mb-1">Priority</span>
+                  <span className="text-slate-400 block text-xs mb-1">{t('tickets.priority', 'Priority')}</span>
                   <PriorityBadge priority={ticket.priority} />
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-xs">Assignee</span>
+                  <span className="text-slate-400 block text-xs">{t('tickets.assignee', 'Assignee')}</span>
                   <span className="font-medium text-slate-700">
-                    {ticket.assignee?.name || 'Unassigned'}
+                    {ticket.assignee?.name || t('tickets.unassigned', 'Unassigned')}
                   </span>
                 </div>
               </div>
@@ -354,23 +365,23 @@ export function TicketWorkspacePage() {
           {/* Controls */}
           <Card>
             <CardHeader>
-              <CardTitle>Ticket Controls</CardTitle>
+              <CardTitle>{t('tickets.ticketControls', 'Ticket Controls')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Status Update (Allowed for Assigned Agent or Admin) */}
               {(isAssignedToMe || user?.role === 'admin') && (
                 <div>
                   <Select
-                    label="Update Status"
+                    label={t('tickets.updateStatus', 'Update Status')}
                     value={ticketStatus}
                     disabled={isUpdatingStatus}
                     onChange={(e) => handleStatusChange(e.target.value as TicketStatus)}
                     options={[
-                      { value: 'open', label: 'Open' },
-                      { value: 'in_progress', label: 'In Progress' },
-                      { value: 'pending', label: 'Pending' },
-                      { value: 'resolved', label: 'Resolved' },
-                      { value: 'closed', label: 'Closed' },
+                      { value: 'open', label: t('status.open', 'Open') },
+                      { value: 'in_progress', label: t('status.in_progress', 'In Progress') },
+                      { value: 'pending', label: t('status.pending', 'Pending') },
+                      { value: 'resolved', label: t('status.resolved', 'Resolved') },
+                      { value: 'closed', label: t('status.closed', 'Closed') },
                     ]}
                   />
                 </div>
@@ -380,11 +391,11 @@ export function TicketWorkspacePage() {
               {user?.role === 'admin' && (
                 <div className="pt-2 border-t border-[#E2E8F0]">
                   <Select
-                    label="Assign Agent"
+                    label={t('tickets.assignAgent', 'Assign Agent')}
                     value={selectedAssignee}
                     onChange={(e) => handleAssignAgent(e.target.value)}
                     options={[
-                      { value: '', label: 'Unassigned' },
+                      { value: '', label: t('tickets.unassigned', 'Unassigned') },
                       ...activeAgents.map((ag) => ({
                         value: ag.id,
                         label: ag.name,
@@ -397,8 +408,8 @@ export function TicketWorkspacePage() {
               {/* Internal Note Form */}
               <form onSubmit={handleAddInternalNote} className="pt-2 border-t border-[#E2E8F0] space-y-3">
                 <Textarea
-                  label="Private internal note"
-                  placeholder="Record investigative details or findings (hidden from customer)..."
+                  label={t('tickets.privateInternalNoteTitle', 'Private internal note')}
+                  placeholder={t('tickets.internalNotePlaceholder', 'Record investigative details or findings (hidden from customer)...')}
                   rows={2}
                   value={internalNoteText}
                   onChange={(e) => setInternalNoteText(e.target.value)}
@@ -412,7 +423,7 @@ export function TicketWorkspacePage() {
                   isLoading={isSubmittingNote}
                   disabled={isSubmittingNote}
                 >
-                  Add Internal Note
+                  {t('tickets.addInternalNote', 'Add Internal Note')}
                 </Button>
               </form>
             </CardContent>

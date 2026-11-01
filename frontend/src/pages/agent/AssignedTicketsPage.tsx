@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
 import { Button } from '../../components/common/Button';
@@ -21,6 +22,7 @@ import { Search } from 'lucide-react';
 
 export function AssignedTicketsPage() {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
 
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
@@ -81,10 +83,10 @@ export function AssignedTicketsPage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] tracking-tight">
-          Assigned Tickets
+          {t('assigned.assignedTicketsTitle', 'Assigned Tickets')}
         </h2>
         <p className="text-sm text-[#64748B] mt-0.5">
-          Tickets currently assigned to you for support and resolution.
+          {t('assigned.assignedTicketsDesc', 'Tickets currently assigned to you for support and resolution.')}
         </p>
       </div>
 
@@ -95,15 +97,15 @@ export function AssignedTicketsPage() {
         className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end bg-white p-4 rounded-xl border border-[#E2E8F0] shadow-2xs"
       >
         <Input
-          label="Search"
-          placeholder="Search by ticket #, subject or description"
+          label={t('common.search', 'Search')}
+          placeholder={t('tickets.searchPlaceholder', 'Search by ticket #, subject or description')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           leftIcon={<Search className="w-4 h-4" />}
         />
 
         <Select
-          label="Status"
+          label={t('tickets.status', 'Status')}
           value={statusFilter}
           onChange={(e) => {
             setStatusFilter(e.target.value);
@@ -111,17 +113,17 @@ export function AssignedTicketsPage() {
             setPage(1);
           }}
           options={[
-            { value: 'all', label: 'All Statuses' },
-            { value: 'open', label: 'Open' },
-            { value: 'in_progress', label: 'In Progress' },
-            { value: 'pending', label: 'Pending' },
-            { value: 'resolved', label: 'Resolved' },
-            { value: 'closed', label: 'Closed' },
+            { value: 'all', label: t('status.all', 'All Statuses') },
+            { value: 'open', label: t('status.open', 'Open') },
+            { value: 'in_progress', label: t('status.in_progress', 'In Progress') },
+            { value: 'pending', label: t('status.pending', 'Pending') },
+            { value: 'resolved', label: t('status.resolved', 'Resolved') },
+            { value: 'closed', label: t('status.closed', 'Closed') },
           ]}
         />
 
         <Select
-          label="Priority"
+          label={t('tickets.priority', 'Priority')}
           value={priorityFilter}
           onChange={(e) => {
             setPriorityFilter(e.target.value);
@@ -129,17 +131,17 @@ export function AssignedTicketsPage() {
             setPage(1);
           }}
           options={[
-            { value: 'all', label: 'All Priorities' },
-            { value: 'low', label: 'Low' },
-            { value: 'normal', label: 'Normal' },
-            { value: 'high', label: 'High' },
-            { value: 'urgent', label: 'Urgent' },
+            { value: 'all', label: t('priority.all', 'All Priorities') },
+            { value: 'low', label: t('priority.low', 'Low') },
+            { value: 'normal', label: t('priority.normal', 'Normal') },
+            { value: 'high', label: t('priority.high', 'High') },
+            { value: 'urgent', label: t('priority.urgent', 'Urgent') },
           ]}
         />
 
         <div>
           <Button type="submit" className="w-full justify-center">
-            Filter
+            {t('common.filter', 'Filter')}
           </Button>
         </div>
       </form>
@@ -148,25 +150,25 @@ export function AssignedTicketsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Ticket ID</TableHead>
-              <TableHead>Subject</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Priority</TableHead>
-              <TableHead>Updated</TableHead>
+              <TableHead>{t('tickets.ticketId', 'Ticket ID')}</TableHead>
+              <TableHead>{t('tickets.subject', 'Subject')}</TableHead>
+              <TableHead>{t('tickets.customer', 'Customer')}</TableHead>
+              <TableHead>{t('tickets.status', 'Status')}</TableHead>
+              <TableHead>{t('tickets.priority', 'Priority')}</TableHead>
+              <TableHead>{t('tickets.updated', 'Updated')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-slate-400">
-                  Loading assigned tickets...
+                  {t('assigned.loadingAssigned', 'Loading assigned tickets...')}
                 </TableCell>
               </TableRow>
             ) : tickets.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-slate-400">
-                  No tickets currently assigned to you. Check the Support Queue!
+                  {t('assigned.noAssignedTickets', 'No tickets currently assigned to you. Check the Support Queue!')}
                 </TableCell>
               </TableRow>
             ) : (
@@ -188,7 +190,7 @@ export function AssignedTicketsPage() {
                     <span className="font-medium text-slate-800">{ticket.subject}</span>
                   </TableCell>
                   <TableCell className="text-xs text-slate-600">
-                    {ticket.customer?.name || 'Customer'}
+                    {ticket.customer?.name || t('common.customer', 'Customer')}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={ticket.status} />
@@ -197,7 +199,7 @@ export function AssignedTicketsPage() {
                     <PriorityBadge priority={ticket.priority} />
                   </TableCell>
                   <TableCell className="text-xs text-[#64748B]">
-                    {new Date(ticket.updatedAt).toLocaleDateString(undefined, {
+                    {new Date(ticket.updatedAt).toLocaleDateString(i18n.language === 'am' ? 'am-ET' : 'en-US', {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',
@@ -213,7 +215,12 @@ export function AssignedTicketsPage() {
       {pagination.totalPages > 1 && (
         <div className="flex items-center justify-between px-2 text-sm text-slate-500">
           <div>
-            Showing page {pagination.page} of {pagination.totalPages} ({pagination.total} tickets total)
+            {t('common.showingTicketsPagination', {
+              page: pagination.page,
+              totalPages: pagination.totalPages,
+              total: pagination.total,
+              defaultValue: `Showing page ${pagination.page} of ${pagination.totalPages} (${pagination.total} tickets total)`,
+            })}
           </div>
           <div className="flex gap-2">
             <Button
@@ -225,7 +232,7 @@ export function AssignedTicketsPage() {
                 setPage((p) => Math.max(1, p - 1));
               }}
             >
-              Previous
+              {t('common.previous', 'Previous')}
             </Button>
             <Button
               size="sm"
@@ -236,7 +243,7 @@ export function AssignedTicketsPage() {
                 setPage((p) => p + 1);
               }}
             >
-              Next
+              {t('common.next', 'Next')}
             </Button>
           </div>
         </div>

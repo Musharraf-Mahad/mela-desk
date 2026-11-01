@@ -1,10 +1,12 @@
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/common/Button';
 import { useAuth } from '../../context/AuthContext';
 
 export function NotFoundPage() {
   const navigate = useNavigate();
   const { role, isAuthenticated } = useAuth();
+  const { t } = useTranslation();
 
   const handleReturn = () => {
     if (!isAuthenticated) {
@@ -19,10 +21,10 @@ export function NotFoundPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-5xl font-extrabold text-[#0F172A] tracking-tight">404</h1>
-      <p className="text-sm text-[#64748B]">We couldn't find that page.</p>
+      <p className="text-sm text-[#64748B]">{t('utility.notFoundMsg')}</p>
       <div className="pt-2">
         <Button onClick={handleReturn} className="px-6">
-          Return to Dashboard
+          {t('utility.returnToDashboard')}
         </Button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { StatCard } from '../../components/common/StatCard';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/common/Card';
 import { StatusBadge } from '../../components/common/Badge';
@@ -10,6 +11,7 @@ import { Layers, AlertCircle, Headphones, CheckCircle2 } from 'lucide-react';
 
 export function AdminDashboardPage() {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [totalTickets, setTotalTickets] = useState<number>(0);
@@ -53,11 +55,21 @@ export function AdminDashboardPage() {
   const resolvedCount = tickets.filter((t) => t.status === 'resolved').length;
   const recentTickets = tickets.slice(0, 4);
 
+  const daysData = [
+    { key: 'mon', label: t('dashboard.days.mon', 'Mon'), h: 'h-24', active: false },
+    { key: 'tue', label: t('dashboard.days.tue', 'Tue'), h: 'h-36', active: true },
+    { key: 'wed', label: t('dashboard.days.wed', 'Wed'), h: 'h-16', active: false },
+    { key: 'thu', label: t('dashboard.days.thu', 'Thu'), h: 'h-40', active: true },
+    { key: 'fri', label: t('dashboard.days.fri', 'Fri'), h: 'h-20', active: false },
+    { key: 'sat', label: t('dashboard.days.sat', 'Sat'), h: 'h-44', active: true },
+    { key: 'sun', label: t('dashboard.days.sun', 'Sun'), h: 'h-32', active: false },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
         <p className="text-sm font-medium text-[#64748B]">
-          Good morning! Here's your overview.
+          {t('dashboard.greeting', "Good morning! Here's your overview.")}
         </p>
       </div>
 
@@ -70,22 +82,22 @@ export function AdminDashboardPage() {
       {/* 4 Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Total Tickets"
+          title={t('dashboard.stats.totalTickets', 'Total Tickets')}
           value={isLoading ? '...' : String(totalTickets)}
           icon={<Layers className="w-5 h-5 text-blue-500" />}
         />
         <StatCard
-          title="Open Tickets"
+          title={t('dashboard.stats.openTickets', 'Open Tickets')}
           value={isLoading ? '...' : String(openCount)}
           icon={<AlertCircle className="w-5 h-5 text-blue-500" />}
         />
         <StatCard
-          title="Resolved"
+          title={t('dashboard.stats.resolved', 'Resolved')}
           value={isLoading ? '...' : String(resolvedCount)}
           icon={<CheckCircle2 className="w-5 h-5 text-emerald-500" />}
         />
         <StatCard
-          title="Active Agents"
+          title={t('dashboard.stats.activeAgents', 'Active Agents')}
           value={isLoading ? '...' : String(totalAgents)}
           icon={<Headphones className="w-5 h-5 text-indigo-500" />}
         />
@@ -95,19 +107,11 @@ export function AdminDashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Ticket activity</CardTitle>
+            <CardTitle>{t('dashboard.ticketActivity', 'Ticket activity')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-48 flex items-end justify-between px-4 sm:px-8 pt-6 pb-2">
-              {[
-                { label: 'Mon', h: 'h-24', active: false },
-                { label: 'Tue', h: 'h-36', active: true },
-                { label: 'Wed', h: 'h-16', active: false },
-                { label: 'Thu', h: 'h-40', active: true },
-                { label: 'Fri', h: 'h-20', active: false },
-                { label: 'Sat', h: 'h-44', active: true },
-                { label: 'Sun', h: 'h-32', active: false },
-              ].map((bar, i) => (
+              {daysData.map((bar, i) => (
                 <div key={i} className="flex flex-col items-center gap-2 group">
                   <div
                     className={`w-7 sm:w-10 rounded-t-md transition-all ${bar.h} ${
@@ -125,13 +129,17 @@ export function AdminDashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent activity</CardTitle>
+            <CardTitle>{t('dashboard.recentActivity', 'Recent activity')}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="py-6 text-center text-xs text-slate-400">Loading recent tickets...</div>
+              <div className="py-6 text-center text-xs text-slate-400">
+                {t('dashboard.loadingRecent', 'Loading recent tickets...')}
+              </div>
             ) : recentTickets.length === 0 ? (
-              <div className="py-6 text-center text-xs text-slate-400">No tickets found.</div>
+              <div className="py-6 text-center text-xs text-slate-400">
+                {t('dashboard.noAdminTickets', 'No tickets found.')}
+              </div>
             ) : (
               <div className="space-y-3">
                 {recentTickets.map((ticket) => (
@@ -145,7 +153,7 @@ export function AdminDashboardPage() {
                         {ticket.ticketNumber || `#${ticket.id}`} · {ticket.subject}
                       </p>
                       <p className="text-[11px] text-slate-400 mt-0.5">
-                        {new Date(ticket.updatedAt).toLocaleDateString(undefined, {
+                        {new Date(ticket.updatedAt).toLocaleDateString(i18n.language === 'am' ? 'am-ET' : 'en-US', {
                           month: 'short',
                           day: 'numeric',
                         })}

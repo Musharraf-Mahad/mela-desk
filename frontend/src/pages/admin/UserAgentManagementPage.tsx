@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import {
@@ -18,6 +19,7 @@ import type { PaginationMeta } from '../../types/api';
 import { Search, Plus, KeyRound, Headphones, Users } from 'lucide-react';
 
 export function UserAgentManagementPage() {
+  const { t, i18n } = useTranslation();
   const [activeTab, setActiveTab] = useState<'agents' | 'customers'>('agents');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -161,7 +163,12 @@ export function UserAgentManagementPage() {
         password: newAgentPassword,
       });
 
-      setSuccessMessage(`Agent "${newAgentName}" created successfully!`);
+      setSuccessMessage(
+        t('users.agentCreatedSuccess', {
+          name: newAgentName,
+          defaultValue: `Agent "${newAgentName}" created successfully!`,
+        })
+      );
       setIsCreateModalOpen(false);
       setNewAgentName('');
       setNewAgentEmail('');
@@ -211,7 +218,9 @@ export function UserAgentManagementPage() {
     try {
       await userApi.updateUserStatus(agent.id, newStatus);
       setSuccessMessage(
-        newStatus ? `Agent "${agent.name}" reactivated.` : `Agent "${agent.name}" deactivated.`
+        newStatus
+          ? t('users.agentReactivated', { name: agent.name, defaultValue: `Agent "${agent.name}" reactivated.` })
+          : t('users.agentDeactivated', { name: agent.name, defaultValue: `Agent "${agent.name}" deactivated.` })
       );
       setRefreshTrigger((t) => t + 1);
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -228,8 +237,8 @@ export function UserAgentManagementPage() {
       await userApi.updateUserStatus(customer.id, newStatus);
       setSuccessMessage(
         newStatus
-          ? `Customer "${customer.name}" reactivated.`
-          : `Customer "${customer.name}" deactivated.`
+          ? t('users.customerReactivated', { name: customer.name, defaultValue: `Customer "${customer.name}" reactivated.` })
+          : t('users.customerDeactivated', { name: customer.name, defaultValue: `Customer "${customer.name}" deactivated.` })
       );
       setRefreshTrigger((t) => t + 1);
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -255,12 +264,14 @@ export function UserAgentManagementPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] tracking-tight">
-            {activeTab === 'agents' ? 'Support Agent Management' : 'Customer Management'}
+            {activeTab === 'agents'
+              ? t('users.agentManagementTitle', 'Support Agent Management')
+              : t('users.customerManagementTitle', 'Customer Management')}
           </h2>
           <p className="text-sm text-[#64748B] mt-0.5">
             {activeTab === 'agents'
-              ? 'Create agent accounts, manage assignments, and reset agent credentials.'
-              : 'View registered customer accounts, check ticket activity, and manage access.'}
+              ? t('users.agentManagementDesc', 'Create agent accounts, manage assignments, and reset agent credentials.')
+              : t('users.customerManagementDesc', 'View registered customer accounts, check ticket activity, and manage access.')}
           </p>
         </div>
         {activeTab === 'agents' && (
@@ -269,7 +280,7 @@ export function UserAgentManagementPage() {
               onClick={() => setIsCreateModalOpen(true)}
               leftIcon={<Plus className="w-4 h-4" />}
             >
-              Create Agent
+              {t('users.createAgent', 'Create Agent')}
             </Button>
           </div>
         )}
@@ -286,14 +297,14 @@ export function UserAgentManagementPage() {
             setActiveTab('agents');
             setError(null);
           }}
-          className={`pb-3 text-sm font-semibold transition-colors flex items-center gap-2 border-b-2 ${
+          className={`pb-3 text-sm font-semibold transition-colors flex items-center gap-2 border-b-2 cursor-pointer ${
             activeTab === 'agents'
               ? 'border-[#2563EB] text-[#2563EB]'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
           <Headphones className="w-4 h-4" />
-          Support Agents
+          {t('users.supportAgentsTab', 'Support Agents')}
           <span
             className={`px-2 py-0.5 text-xs rounded-full ${
               activeTab === 'agents' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
@@ -308,14 +319,14 @@ export function UserAgentManagementPage() {
             setActiveTab('customers');
             setError(null);
           }}
-          className={`pb-3 text-sm font-semibold transition-colors flex items-center gap-2 border-b-2 ${
+          className={`pb-3 text-sm font-semibold transition-colors flex items-center gap-2 border-b-2 cursor-pointer ${
             activeTab === 'customers'
               ? 'border-[#2563EB] text-[#2563EB]'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
           <Users className="w-4 h-4" />
-          Customers
+          {t('users.customersTab', 'Customers')}
           <span
             className={`px-2 py-0.5 text-xs rounded-full ${
               activeTab === 'customers' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
@@ -332,8 +343,8 @@ export function UserAgentManagementPage() {
           {/* Filter Row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end bg-white p-4 rounded-xl border border-[#E2E8F0] shadow-2xs">
             <Input
-              label="Search"
-              placeholder="Search by agent name or email"
+              label={t('common.search', 'Search')}
+              placeholder={t('users.searchAgentPlaceholder', 'Search by agent name or email')}
               value={agentSearch}
               onChange={(e) => setAgentSearch(e.target.value)}
               leftIcon={<Search className="w-4 h-4" />}
@@ -344,24 +355,24 @@ export function UserAgentManagementPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Agent Name</TableHead>
-                  <TableHead>Email Address</TableHead>
-                  <TableHead>Assigned Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t('users.agentName', 'Agent Name')}</TableHead>
+                  <TableHead>{t('users.emailAddress', 'Email Address')}</TableHead>
+                  <TableHead>{t('users.assignedRole', 'Assigned Role')}</TableHead>
+                  <TableHead>{t('users.status', 'Status')}</TableHead>
+                  <TableHead className="text-right">{t('common.actions', 'Actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8 text-slate-400">
-                      Loading agents...
+                      {t('users.loadingAgents', 'Loading agents...')}
                     </TableCell>
                   </TableRow>
                 ) : filteredAgents.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8 text-slate-400">
-                      No agents found. Click "Create Agent" to add the first agent.
+                      {t('users.noAgentsFound', 'No agents found. Click "Create Agent" to add the first agent.')}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -378,9 +389,9 @@ export function UserAgentManagementPage() {
                       </TableCell>
                       <TableCell>
                         {agent.isActive !== false ? (
-                          <Badge variant="emerald">Active</Badge>
+                          <Badge variant="emerald">{t('common.active', 'Active')}</Badge>
                         ) : (
-                          <Badge variant="slate">Inactive</Badge>
+                          <Badge variant="slate">{t('common.inactive', 'Inactive')}</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -396,7 +407,7 @@ export function UserAgentManagementPage() {
                               setIsResetModalOpen(true);
                             }}
                           >
-                            Reset Password
+                            {t('users.resetPassword', 'Reset Password')}
                           </Button>
                           <Button
                             size="sm"
@@ -408,7 +419,9 @@ export function UserAgentManagementPage() {
                             }
                             onClick={() => handleToggleAgentStatus(agent)}
                           >
-                            {agent.isActive !== false ? 'Deactivate' : 'Reactivate'}
+                            {agent.isActive !== false
+                              ? t('common.deactivate', 'Deactivate')
+                              : t('common.reactivate', 'Reactivate')}
                           </Button>
                         </div>
                       </TableCell>
@@ -423,8 +436,12 @@ export function UserAgentManagementPage() {
           {agentPagination.totalPages > 1 && (
             <div className="flex items-center justify-between px-2 text-sm text-slate-500">
               <div>
-                Showing page {agentPagination.page} of {agentPagination.totalPages} (
-                {agentPagination.total} agents total)
+                {t('common.showingAgentsPagination', {
+                  page: agentPagination.page,
+                  totalPages: agentPagination.totalPages,
+                  total: agentPagination.total,
+                  defaultValue: `Showing page ${agentPagination.page} of ${agentPagination.totalPages} (${agentPagination.total} agents total)`,
+                })}
               </div>
               <div className="flex gap-2">
                 <Button
@@ -435,7 +452,7 @@ export function UserAgentManagementPage() {
                     setAgentPage((p) => Math.max(1, p - 1));
                   }}
                 >
-                  Previous
+                  {t('common.previous', 'Previous')}
                 </Button>
                 <Button
                   size="sm"
@@ -445,7 +462,7 @@ export function UserAgentManagementPage() {
                     setAgentPage((p) => p + 1);
                   }}
                 >
-                  Next
+                  {t('common.next', 'Next')}
                 </Button>
               </div>
             </div>
@@ -459,8 +476,8 @@ export function UserAgentManagementPage() {
           {/* Filter Row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end bg-white p-4 rounded-xl border border-[#E2E8F0] shadow-2xs">
             <Input
-              label="Search"
-              placeholder="Search by customer name or email"
+              label={t('common.search', 'Search')}
+              placeholder={t('users.searchCustomerPlaceholder', 'Search by customer name or email')}
               value={customerSearch}
               onChange={(e) => setCustomerSearch(e.target.value)}
               leftIcon={<Search className="w-4 h-4" />}
@@ -471,26 +488,26 @@ export function UserAgentManagementPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Customer Name</TableHead>
-                  <TableHead>Email Address</TableHead>
-                  <TableHead>Assigned Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Tickets</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t('users.customerName', 'Customer Name')}</TableHead>
+                  <TableHead>{t('users.emailAddress', 'Email Address')}</TableHead>
+                  <TableHead>{t('users.assignedRole', 'Assigned Role')}</TableHead>
+                  <TableHead>{t('users.status', 'Status')}</TableHead>
+                  <TableHead>{t('users.ticketsCount', 'Tickets')}</TableHead>
+                  <TableHead>{t('users.joined', 'Joined')}</TableHead>
+                  <TableHead className="text-right">{t('common.actions', 'Actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-slate-400">
-                      Loading customers...
+                      {t('users.loadingCustomers', 'Loading customers...')}
                     </TableCell>
                   </TableRow>
                 ) : filteredCustomers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-slate-400">
-                      No customers found.
+                      {t('users.noCustomersFound', 'No customers found.')}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -507,19 +524,21 @@ export function UserAgentManagementPage() {
                       </TableCell>
                       <TableCell>
                         {customer.isActive !== false ? (
-                          <Badge variant="emerald">Active</Badge>
+                          <Badge variant="emerald">{t('common.active', 'Active')}</Badge>
                         ) : (
-                          <Badge variant="slate">Inactive</Badge>
+                          <Badge variant="slate">{t('common.inactive', 'Inactive')}</Badge>
                         )}
                       </TableCell>
                       <TableCell>
                         <Badge variant="sky">
                           {customer._count?.tickets ?? 0}{' '}
-                          {customer._count?.tickets === 1 ? 'ticket' : 'tickets'}
+                          {customer._count?.tickets === 1
+                            ? t('users.ticketSingular', 'ticket')
+                            : t('users.ticketPlural', 'tickets')}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-xs text-slate-500">
-                        {new Date(customer.createdAt).toLocaleDateString(undefined, {
+                        {new Date(customer.createdAt).toLocaleDateString(i18n.language === 'am' ? 'am-ET' : 'en-US', {
                           month: 'short',
                           day: 'numeric',
                           year: 'numeric',
@@ -536,7 +555,9 @@ export function UserAgentManagementPage() {
                           }
                           onClick={() => handleToggleCustomerStatus(customer)}
                         >
-                          {customer.isActive !== false ? 'Deactivate' : 'Reactivate'}
+                          {customer.isActive !== false
+                            ? t('common.deactivate', 'Deactivate')
+                            : t('common.reactivate', 'Reactivate')}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -550,8 +571,12 @@ export function UserAgentManagementPage() {
           {customerPagination.totalPages > 1 && (
             <div className="flex items-center justify-between px-2 text-sm text-slate-500">
               <div>
-                Showing page {customerPagination.page} of {customerPagination.totalPages} (
-                {customerPagination.total} customers total)
+                {t('common.showingCustomersPagination', {
+                  page: customerPagination.page,
+                  totalPages: customerPagination.totalPages,
+                  total: customerPagination.total,
+                  defaultValue: `Showing page ${customerPagination.page} of ${customerPagination.totalPages} (${customerPagination.total} customers total)`,
+                })}
               </div>
               <div className="flex gap-2">
                 <Button
@@ -562,7 +587,7 @@ export function UserAgentManagementPage() {
                     setCustomerPage((p) => Math.max(1, p - 1));
                   }}
                 >
-                  Previous
+                  {t('common.previous', 'Previous')}
                 </Button>
                 <Button
                   size="sm"
@@ -572,7 +597,7 @@ export function UserAgentManagementPage() {
                     setCustomerPage((p) => p + 1);
                   }}
                 >
-                  Next
+                  {t('common.next', 'Next')}
                 </Button>
               </div>
             </div>
@@ -584,7 +609,7 @@ export function UserAgentManagementPage() {
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title="Create Support Agent Account"
+        title={t('users.createAgentModalTitle', 'Create Support Agent Account')}
         footer={
           <>
             <Button
@@ -593,7 +618,7 @@ export function UserAgentManagementPage() {
               onClick={() => setIsCreateModalOpen(false)}
               disabled={isCreatingAgent}
             >
-              Cancel
+              {t('common.cancel', 'Cancel')}
             </Button>
             <Button
               type="submit"
@@ -601,7 +626,7 @@ export function UserAgentManagementPage() {
               isLoading={isCreatingAgent}
               disabled={isCreatingAgent}
             >
-              Create Agent
+              {t('users.createAgent', 'Create Agent')}
             </Button>
           </>
         }
@@ -610,29 +635,29 @@ export function UserAgentManagementPage() {
           {createModalError && <Alert type="error">{createModalError}</Alert>}
 
           <Input
-            label="Agent Full Name"
-            placeholder="e.g. Abdi Ali"
+            label={t('users.agentFullNameLabel', 'Agent Full Name')}
+            placeholder={t('users.agentFullNamePlaceholder', 'e.g. Abdi Ali')}
             value={newAgentName}
             onChange={(e) => setNewAgentName(e.target.value)}
             required
           />
 
           <Input
-            label="Agent Email Address"
+            label={t('users.agentEmailLabel', 'Agent Email Address')}
             type="email"
-            placeholder="agent@example.com"
+            placeholder={t('users.agentEmailPlaceholder', 'agent@example.com')}
             value={newAgentEmail}
             onChange={(e) => setNewAgentEmail(e.target.value)}
             required
           />
 
           <Input
-            label="Temporary Password"
+            label={t('users.tempPasswordLabel', 'Temporary Password')}
             type="password"
-            placeholder="At least 12 characters"
+            placeholder={t('auth.passwordLengthPlaceholder', 'At least 12 characters')}
             value={newAgentPassword}
             onChange={(e) => setNewAgentPassword(e.target.value)}
-            helperText="Must be between 12 and 128 characters."
+            helperText={t('auth.passwordLengthHelper', 'Must be between 12 and 128 characters.')}
             required
           />
         </form>
@@ -642,7 +667,10 @@ export function UserAgentManagementPage() {
       <Modal
         isOpen={isResetModalOpen}
         onClose={() => setIsResetModalOpen(false)}
-        title={`Reset Password for ${selectedAgentForReset?.name}`}
+        title={t('users.resetPasswordModalTitle', {
+          name: selectedAgentForReset?.name,
+          defaultValue: `Reset Password for ${selectedAgentForReset?.name}`,
+        })}
         footer={
           <>
             <Button
@@ -651,7 +679,7 @@ export function UserAgentManagementPage() {
               onClick={() => setIsResetModalOpen(false)}
               disabled={isResettingPassword}
             >
-              Cancel
+              {t('common.cancel', 'Cancel')}
             </Button>
             <Button
               type="submit"
@@ -659,7 +687,7 @@ export function UserAgentManagementPage() {
               isLoading={isResettingPassword}
               disabled={isResettingPassword}
             >
-              Reset Password
+              {t('users.resetPassword', 'Reset Password')}
             </Button>
           </>
         }
@@ -668,16 +696,16 @@ export function UserAgentManagementPage() {
           {resetModalError && <Alert type="error">{resetModalError}</Alert>}
 
           <p className="text-xs text-slate-500">
-            Resetting the password will immediately revoke all active sessions for this agent.
+            {t('users.resetPasswordNotice', 'Resetting the password will immediately revoke all active sessions for this agent.')}
           </p>
 
           <Input
-            label="New Password"
+            label={t('users.newPasswordLabel', 'New Password')}
             type="password"
-            placeholder="At least 12 characters"
+            placeholder={t('auth.passwordLengthPlaceholder', 'At least 12 characters')}
             value={resetPasswordValue}
             onChange={(e) => setResetPasswordValue(e.target.value)}
-            helperText="Must be between 12 and 128 characters."
+            helperText={t('auth.passwordLengthHelper', 'Must be between 12 and 128 characters.')}
             required
           />
         </form>

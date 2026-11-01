@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { TicketPriority, TicketStatus } from '../../types/ticket';
 import type { UserRole } from '../../types/auth';
 
@@ -54,37 +55,46 @@ export function Badge({
 }
 
 export function StatusBadge({ status }: { status: TicketStatus }) {
-  const config: Record<TicketStatus, { label: string; variant: BadgeVariant }> = {
-    open: { label: 'Open', variant: 'blue' },
-    in_progress: { label: 'In Progress', variant: 'amber' },
-    pending: { label: 'Pending', variant: 'indigo' },
-    resolved: { label: 'Resolved', variant: 'emerald' },
-    closed: { label: 'Closed', variant: 'slate' },
+  const { t } = useTranslation();
+
+  const config: Record<TicketStatus, { key: string; defaultLabel: string; variant: BadgeVariant }> = {
+    open: { key: 'status.open', defaultLabel: 'Open', variant: 'blue' },
+    in_progress: { key: 'status.in_progress', defaultLabel: 'In Progress', variant: 'amber' },
+    pending: { key: 'status.pending', defaultLabel: 'Pending', variant: 'indigo' },
+    resolved: { key: 'status.resolved', defaultLabel: 'Resolved', variant: 'emerald' },
+    closed: { key: 'status.closed', defaultLabel: 'Closed', variant: 'slate' },
   };
 
-  const { label, variant } = config[status] || { label: status, variant: 'slate' };
-  return <Badge variant={variant}>{label}</Badge>;
+  const item = config[status] || { key: '', defaultLabel: status, variant: 'slate' };
+  const label = item.key ? t(item.key, item.defaultLabel) : item.defaultLabel;
+  return <Badge variant={item.variant}>{label}</Badge>;
 }
 
 export function PriorityBadge({ priority }: { priority: TicketPriority }) {
-  const config: Record<TicketPriority, { label: string; variant: BadgeVariant }> = {
-    low: { label: 'Low', variant: 'slate' },
-    normal: { label: 'Normal', variant: 'sky' },
-    high: { label: 'High', variant: 'orange' },
-    urgent: { label: 'Urgent', variant: 'rose' },
+  const { t } = useTranslation();
+
+  const config: Record<TicketPriority, { key: string; defaultLabel: string; variant: BadgeVariant }> = {
+    low: { key: 'priority.low', defaultLabel: 'Low', variant: 'slate' },
+    normal: { key: 'priority.normal', defaultLabel: 'Normal', variant: 'sky' },
+    high: { key: 'priority.high', defaultLabel: 'High', variant: 'orange' },
+    urgent: { key: 'priority.urgent', defaultLabel: 'Urgent', variant: 'rose' },
   };
 
-  const { label, variant } = config[priority] || { label: priority, variant: 'slate' };
-  return <Badge variant={variant}>{label}</Badge>;
+  const item = config[priority] || { key: '', defaultLabel: priority, variant: 'slate' };
+  const label = item.key ? t(item.key, item.defaultLabel) : item.defaultLabel;
+  return <Badge variant={item.variant}>{label}</Badge>;
 }
 
 export function RoleBadge({ role }: { role: UserRole }) {
-  const config: Record<UserRole, { label: string; variant: BadgeVariant }> = {
-    customer: { label: 'Customer', variant: 'slate' },
-    agent: { label: 'Support Agent', variant: 'blue' },
-    admin: { label: 'Administrator', variant: 'purple' },
+  const { t } = useTranslation();
+
+  const config: Record<UserRole, { key: string; defaultLabel: string; variant: BadgeVariant }> = {
+    customer: { key: 'roles.customer', defaultLabel: 'Customer', variant: 'slate' },
+    agent: { key: 'roles.agent', defaultLabel: 'Support Agent', variant: 'blue' },
+    admin: { key: 'roles.admin', defaultLabel: 'Administrator', variant: 'purple' },
   };
 
-  const { label, variant } = config[role] || { label: role, variant: 'slate' };
-  return <Badge variant={variant}>{label}</Badge>;
+  const item = config[role] || { key: '', defaultLabel: role, variant: 'slate' };
+  const label = item.key ? t(item.key, item.defaultLabel) : item.defaultLabel;
+  return <Badge variant={item.variant}>{label}</Badge>;
 }

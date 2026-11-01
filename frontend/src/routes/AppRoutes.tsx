@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { ProtectedRoute } from './ProtectedRoute';
 
@@ -37,6 +38,7 @@ import { NotFoundPage } from '../pages/utility/NotFoundPage';
 
 export function AppRoutes() {
   const { isAuthenticated, role, isLoading } = useAuth();
+  const { t } = useTranslation();
 
   // Root redirect helper based on authenticated role
   const getRootRedirect = () => {
@@ -51,7 +53,7 @@ export function AppRoutes() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-slate-500 font-medium">Loading session...</p>
+          <p className="text-sm text-slate-500 font-medium">{t('app.loadingSession', 'Loading session...')}</p>
         </div>
       </div>
     );
