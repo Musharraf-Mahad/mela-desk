@@ -1,172 +1,293 @@
-# Mela Desk — GitHub Collaboration Guidelines
+# MelaDesk — Customer Support Ticket Management System
 
-## 1. Golden Rules
-- Never push directly to `main`.
-- Create a separate branch for every task.
-- Submit changes through a Pull Request (PR).
-- Test your code before submitting a PR.
+MelaDesk is a web-based customer support ticket management system that helps organizations manage customer inquiries, service requests, and technical issues efficiently.
 
-## 2. Clone the Repository (First Time Only)
+It provides a centralized platform where customers can submit and track tickets, support agents can manage and resolve requests, and administrators can oversee users and system activities.
 
-Copy the repository URL from GitHub, then run:
+## Key Features
+
+- Secure user registration and authentication.
+- Role-based access control.
+- Customer ticket creation and tracking.
+- Ticket assignment and priority management.
+- Ticket status updates and comments.
+- Support agent dashboard and ticket queue.
+- Administrator dashboard and user management.
+- Internal notes for support agents.
+- Live ticket updates.
+- Email notifications.
+- English and Amharic language support.
+- Responsive user interface.
+- Activity monitoring through audit logs.
+
+## User Roles
+
+| Role | Responsibilities |
+|---|---|
+| Customer | Create tickets, track progress, and communicate with support agents. |
+| Support Agent | Manage assigned tickets, claim available tickets, and resolve customer issues. |
+| Administrator | Manage users, assign tickets, and monitor system activities. |
+
+## Technology Stack
+
+**Frontend**
+- React
+- TypeScript
+- Tailwind CSS
+- Vite
+- Axios
+- React Router
+
+**Backend**
+- Node.js
+- Express.js
+- TypeScript
+- Prisma ORM
+- Zod
+
+**Database**
+- MySQL 8.4
+
+**Tools and Infrastructure**
+- Docker and Docker Compose
+- Nginx
+- Vitest
+- Playwright
+- Git and GitHub
+
+## System Architecture
+
+MelaDesk follows a frontend-backend architecture.
+
+```text
+        CUSTOMER / AGENT / ADMIN
+                   |
+                   v
+            REACT FRONTEND
+                   |
+                   v
+                 NGINX
+                   |
+                   v
+             EXPRESS API
+                   |
+                   v
+               PRISMA
+                   |
+                   v
+                MYSQL
+```
+
+The frontend communicates with the backend through REST APIs. The backend handles authentication, authorization, business logic, and database operations.
+
+## Project Structure
+
+```text
+mela-desk/
+│
+├── backend/
+│   ├── prisma/
+│   ├── scripts/
+│   ├── src/
+│   ├── tests/
+│   └── Dockerfile
+│
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   ├── Dockerfile
+│   └── nginx.conf
+│
+├── docs/
+├── e2e/
+├── docker-compose.yml
+├── package.json
+└── README.md
+```
+
+## Getting Started
+
+### Prerequisites
+
+Make sure you have installed:
+
+- Node.js 22 or later
+- npm
+- MySQL 8.4
+- Git
+- Docker Desktop (for containerized deployment)
+
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/Musharraf-Mahad/mela-desk.git
 cd mela-desk
 ```
 
-## 3. Create a Branch
-
-Before starting a task, update `main` and create your own branch:
+### 2. Install Dependencies
 
 ```bash
-git switch main
-git pull origin main
-git switch -c feature/your-task
-```
-
-Branch naming examples:
-- `feature/ticket-creation`
-- `fix/login-error`
-- `docs/update-readme`
-- `test/ticket-api`
-
-## 4. Code, Test, Commit, and Push
-
-Make your changes, then test your code. When ready, run:
-
-```bash
-git status
-git add .
-git commit -m "feat: add ticket creation"
-git push -u origin feature/your-task
-```
-
-Use a meaningful commit message, such as `fix: correct login validation`.
-
-**Note:** Replace `feature/your-task` with your actual branch name.
-
-## 5. Create a Pull Request
-
-1. Open the repository on GitHub.
-2. Click **Compare & pull request** (or open a new PR).
-3. Set the base branch to `main` and the compare branch to your feature branch.
-4. Describe your changes and testing.
-5. Request a review from at least one teammate.
-6. Address feedback and merge only after approval.
-
-## 6. Before Starting Another Task
-
-After your PR is merged:
-
-```bash
-git switch main
-git pull origin main
-git switch -c feature/next-task
-```
-
-## 7. Backend API
-
-The backend uses Node.js, Express, TypeScript, Prisma, and MySQL. From the repository root, install the backend dependencies and configure its environment:
-
-```bash
+npm install
 cd backend
 npm install
-cp .env.example .env
+cd ../frontend
+npm install
 ```
 
-In `backend/.env`, set `DATABASE_URL` to your MySQL connection string, `PORT` to the API port, and `FRONTEND_ORIGINS` to a comma-separated list of trusted frontend origins. For local Vite development, the default frontend origin is `http://localhost:5173`.
+### 3. Run the Application Locally
 
-Optional ticket email notifications use SMTP; configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM` in `backend/.env`. Without SMTP settings, ticket email delivery is disabled while API operations and authenticated live ticket events continue. See the [integration contract](./docs/backend-integration-contract.md) for SSE client usage, notification behavior, and recommended email testing.
-
-### Local MySQL with Docker
-
-From the repository root, copy `docker.env.example` to `.env`. Its credentials are for local development only; change them before using this setup beyond a local machine. The root `.env` configures Docker Compose, while `backend/.env` configures the API. Set `DATABASE_URL` in `backend/.env` to match the Docker credentials, for example:
-
-```env
-DATABASE_URL="mysql://mela_desk:local_dev_password@127.0.0.1:3307/mela_desk"
-```
-
-Start MySQL and wait for its health check:
-
-```bash
-docker compose up -d --wait mysql
-```
-
-For a fresh development database, apply the checked-in migrations and generate the client:
-
-```bash
-npm run db:migrate
-npm run db:generate
-```
-
-For deployment, apply migrations with `npm run db:deploy`. Use `npm run db:migrate` only in development to create migrations. Avoid `db:push` on shared or production databases. If a database was already initialized using `db:push`, reconcile its migration history before using `db:deploy`; do not run the initial migration against tables that already exist.
-
-Run the API, tests, and TypeScript build from the `backend` directory:
+Start the backend from the `backend` directory:
 
 ```bash
 npm run dev
-npm test
-npm run build
 ```
 
-After configuring MySQL and applying migrations, verify real database-backed API workflows with:
+Start the frontend from the `frontend` directory in another terminal:
 
 ```bash
-npm run db:smoke
+npm run dev
 ```
 
-This creates a uniquely named temporary customer and ticket, exercises registration, login, profile, ticket, comment, and logout flows against MySQL, and removes the test records afterward. It does not modify existing users or tickets.
+The application will be available at:
 
-Public registration only creates customer accounts. To create the initial admin in Windows PowerShell, run this from the repository's `backend` directory. The password prompt is hidden; choose a password between 12 and 128 characters.
+- Frontend: http://localhost:5173
+- Backend: http://localhost:5000
 
-```powershell
-$env:BOOTSTRAP_ADMIN_NAME = Read-Host "Admin name"
-$env:BOOTSTRAP_ADMIN_EMAIL = Read-Host "Admin email"
-$securePassword = Read-Host "Admin password" -AsSecureString
-$passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-try {
-  $env:BOOTSTRAP_ADMIN_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
-  npm.cmd run db:create-admin
-} finally {
-  Remove-Item Env:BOOTSTRAP_ADMIN_NAME -ErrorAction SilentlyContinue
-  Remove-Item Env:BOOTSTRAP_ADMIN_EMAIL -ErrorAction SilentlyContinue
-  Remove-Item Env:BOOTSTRAP_ADMIN_PASSWORD -ErrorAction SilentlyContinue
-  [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
-}
+Configure your local MySQL connection and apply the Prisma migrations before starting the backend.
+
+## Running with Docker
+
+MelaDesk supports Docker Compose for running the frontend, backend, and MySQL database together.
+
+### Build and Start
+
+From the project root:
+
+```bash
+docker compose up -d --build
 ```
 
-The command hashes the password with Argon2id, records an audit event, and refuses to create another admin once any admin account exists. Never commit the credentials or share the password.
+### Check Running Containers
 
-### Current API routes
+```bash
+docker compose ps
+```
 
-For detailed request/response conventions, role permissions, assignment examples, and database migration coordination, see [the backend integration contract](./docs/backend-integration-contract.md).
+### View Application Logs
 
-All authenticated routes use the `mela_desk_session` HttpOnly cookie issued by `POST /api/auth/login`.
+```bash
+docker compose logs -f
+```
 
-| Method | Route | Access |
-|---|---|---|
-| `POST` | `/api/auth/register` | Public customer registration |
-| `POST` | `/api/auth/login` | Public login |
-| `GET` | `/api/auth/me` | Authenticated user |
-| `POST` | `/api/auth/logout` | Revokes the session cookie if present |
-| `PATCH` | `/api/auth/profile` | Authenticated user; updates own display name |
-| `POST` | `/api/auth/change-password` | Authenticated user |
-| `POST` | `/api/tickets` | Customer |
-| `GET` | `/api/tickets` | Role-scoped tickets; supports status/category/priority filters and subject/description search |
-| `GET` | `/api/tickets/queue` | Agent; paginated open unassigned tickets with category/priority/search filters |
-| `GET` | `/api/tickets/:ticketId` | Ticket owner, assigned agent, or admin |
-| `POST` | `/api/tickets/:ticketId/comments` | Ticket owner, assigned agent, or admin |
-| `PATCH` | `/api/tickets/:ticketId/status` | Assigned agent or admin |
-| `PATCH` | `/api/tickets/:ticketId/assignee` | Admin |
-| `POST` | `/api/tickets/:ticketId/claim` | Agent; open unassigned tickets only |
-| `POST` | `/api/users/agents` | Admin; creates an active agent account |
-| `PATCH` | `/api/users/agents/:agentId/password` | Admin; resets agent password and revokes sessions |
-| `GET` | `/api/users/agents` | Admin |
-| `PATCH` | `/api/users/:userId/status` | Admin |
-| `GET` | `/api/audit-logs` | Admin; filterable by ticket, user, and action |
-| `GET` | `/api/health` | Public; reports API/database health |
+### Stop the Application
 
-Customer ticket responses omit internal comments. Ticket status, assignment, account status, creation, and comment changes are recorded in the audit log.
+```bash
+docker compose down
+```
 
-API errors use JSON responses with `success: false` and a safe message. Malformed JSON returns `400`, oversized request bodies return `413`, unknown routes return `404`, and unexpected server errors return a generic `500` message.
+**Application access:**
+
+| Service | Address |
+|---|---|
+| Frontend | http://localhost:5173 |
+| Backend | Internal Docker port 5000 |
+| MySQL | localhost:3307 |
+
+Docker Compose uses a persistent volume for MySQL data. Avoid `docker compose down -v` unless you intentionally want to delete the database volume.
+
+## Database Management
+
+MelaDesk uses MySQL with Prisma ORM.
+
+The Prisma schema is located at:
+
+`backend/prisma/schema.prisma`
+
+Useful database commands (run inside `backend`):
+
+| Command | Purpose |
+|---|---|
+| `npm run db:generate` | Generate Prisma Client |
+| `npm run db:migrate` | Apply development migrations |
+| `npm run db:deploy` | Apply committed migrations |
+| `npm run db:studio` | Open Prisma Studio |
+
+## Testing
+
+The project includes backend tests, frontend quality checks, and end-to-end tests.
+
+Run backend tests:
+
+```bash
+npm run test:backend
+```
+
+Build and type-check the frontend:
+
+```bash
+npm run test:frontend
+```
+
+Run frontend linting:
+
+```bash
+npm run lint:frontend
+```
+
+Run end-to-end tests:
+
+```bash
+npm run test:e2e
+```
+
+## API Documentation
+
+The backend provides REST API endpoints for:
+
+- Authentication and account management.
+- Ticket creation and management.
+- Ticket assignment and status updates.
+- Comments and internal notes.
+- User and agent management.
+- Audit logs.
+- Application health checks.
+
+For detailed API routes, permissions, and integration guidelines, see:
+
+[Backend Integration Contract](./docs/backend-integration-contract.md)
+
+## Security
+
+MelaDesk includes:
+
+- Argon2id password hashing.
+- HttpOnly session cookies.
+- Role-based authorization.
+- Server-side input validation.
+- Ticket ownership and permission checks.
+- Protected administrator operations.
+- Audit logging.
+- Secure environment-based configuration.
+
+## Languages
+
+The application supports:
+
+- English
+- Amharic
+
+## Project Information
+
+| Detail | Description |
+|---|---|
+| Project | MelaDesk |
+| Type | Customer Support Ticket Management System |
+| Frontend | React + TypeScript |
+| Backend | Node.js + Express |
+| Database | MySQL |
+| ORM | Prisma |
+| Deployment | Docker Compose |
+
+---
+
+**MelaDesk — Making Customer Support Organized, Trackable, and Efficient.**
