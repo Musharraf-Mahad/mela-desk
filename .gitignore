@@ -23,5 +23,9 @@ logs/
 .idea/
 .DS_Store
 
+# Playwright test artifacts
+test-results/
+playwright-report/
+
 
 
