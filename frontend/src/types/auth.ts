@@ -1,4 +1,34 @@
-export type UserRole = 'customer' | 'agent' | 'admin';
+export type UserRole = 'customer' | 'agent' | 'department_head' | 'head' | 'admin';
+
+export interface DepartmentWorkload {
+  total: number;
+  open: number;
+  inProgress: number;
+  pending: number;
+  resolved: number;
+  closed: number;
+}
+
+export interface Department {
+  id: string;
+  name: string;
+  description?: string | null;
+  headId?: string | null;
+  head?: User | null;
+  members?: User[];
+  _count?: {
+    members?: number;
+    tickets?: number;
+  };
+  workload?: {
+    open: number;
+    inProgress: number;
+    resolved: number;
+    closed: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface User {
   id: string;
@@ -6,6 +36,8 @@ export interface User {
   name: string;
   role: UserRole;
   isActive?: boolean;
+  departmentId?: string | null;
+  department?: Department | null;
   createdAt: string;
   updatedAt?: string;
 }

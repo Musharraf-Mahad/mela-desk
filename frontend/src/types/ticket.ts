@@ -13,6 +13,20 @@ export interface TicketAuthor {
   email?: string;
 }
 
+export interface Attachment {
+  id: string;
+  ticketId?: string;
+  originalFilename: string;
+  mimeType: string;
+  fileSize: number;
+  createdAt: string;
+  uploadedBy?: {
+    id: string;
+    name: string;
+    role?: string;
+  } | null;
+}
+
 export interface Comment {
   id: string;
   ticketId?: string;
@@ -27,10 +41,14 @@ export interface Comment {
 export interface Ticket {
   id: string;
   ticketNumber?: string;
-  customerId?: string;
+  customerId?: string | null;
+  guestName?: string | null;
+  guestEmail?: string | null;
   assigneeId?: string | null;
-  customer?: TicketAuthor;
+  departmentId?: string | null;
+  customer?: TicketAuthor | null;
   assignee?: TicketAuthor | null;
+  department?: { id: string; name: string } | null;
   subject: string;
   description: string;
   category: TicketCategory;
@@ -39,6 +57,7 @@ export interface Ticket {
   createdAt: string;
   updatedAt: string;
   comments?: Comment[];
+  attachments?: Attachment[];
 }
 
 export interface AuditLog {
@@ -56,6 +75,7 @@ export interface TicketFilterParams {
   status?: TicketStatus | 'all';
   priority?: TicketPriority | 'all';
   category?: TicketCategory | 'all';
+  departmentId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -65,9 +85,52 @@ export interface CreateTicketPayload {
   description: string;
   category: TicketCategory;
   priority: TicketPriority;
+  departmentId?: string | null;
 }
 
 export interface PaginatedTickets {
   tickets: Ticket[];
   pagination: PaginationMeta;
+}
+
+export interface PublicTicketSubmissionPayload {
+  guestName: string;
+  guestEmail: string;
+  subject: string;
+  description: string;
+  category: TicketCategory;
+  files?: File[];
+}
+
+export interface PublicTicketSubmissionResponse {
+  ticketNumber: string;
+  trackingToken: string;
+  subject: string;
+  category: TicketCategory;
+  priority: TicketPriority;
+  status: TicketStatus;
+  createdAt: string;
+  attachments?: Array<{ id: string; originalFilename: string; mimeType: string; fileSize: number }>;
+}
+
+export interface PublicTrackedComment {
+  id: string;
+  body: string;
+  createdAt: string;
+  authorName: string;
+  isStaff: boolean;
+}
+
+export interface PublicTicketTrackResponse {
+  ticketNumber: string;
+  subject: string;
+  description: string;
+  category: TicketCategory;
+  priority: TicketPriority;
+  status: TicketStatus;
+  guestName?: string;
+  createdAt: string;
+  updatedAt: string;
+  comments: PublicTrackedComment[];
+  attachments: Attachment[];
 }

@@ -1,4 +1,4 @@
-import { TicketCategory, TicketPriority, TicketStatus, UserRole } from '@prisma/client'
+import { Prisma, TicketCategory, TicketPriority, TicketStatus, UserRole } from '@prisma/client'
 import { Router } from 'express'
 import { z } from 'zod'
 import { authenticate, requireRole } from '../middleware/authenticate.js'
@@ -12,12 +12,14 @@ const createTicketSchema = z.object({
   description: z.string().trim().min(1).max(10_000),
   category: z.nativeEnum(TicketCategory),
   priority: z.nativeEnum(TicketPriority),
+  departmentId: z.string().trim().min(1).max(191).optional().nullable(),
 })
 
 const listTicketsSchema = z.object({
   status: z.nativeEnum(TicketStatus).optional(),
   category: z.nativeEnum(TicketCategory).optional(),
   priority: z.nativeEnum(TicketPriority).optional(),
+  departmentId: z.string().trim().optional(),
   search: z.string().trim().min(1).max(100).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
@@ -44,6 +46,10 @@ const assignTicketSchema = z.object({
   assigneeId: z.string().trim().min(1).max(191).nullable(),
 })
 
+const updateTicketDepartmentSchema = z.object({
+  departmentId: z.string().trim().nullable(),
+})
+
 const ticketSelect = {
   ticketNumber: true,
   id: true,
@@ -52,6 +58,13 @@ const ticketSelect = {
   category: true,
   priority: true,
   status: true,
+  departmentId: true,
+  department: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
   createdAt: true,
   updatedAt: true,
   customer: {
@@ -64,6 +77,23 @@ const ticketSelect = {
     select: {
       id: true,
       name: true,
+    },
+  },
+  guestName: true,
+  guestEmail: true,
+  attachments: {
+    select: {
+      id: true,
+      originalFilename: true,
+      mimeType: true,
+      fileSize: true,
+      createdAt: true,
+      uploadedBy: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   },
 } as const
@@ -80,6 +110,14 @@ const commentSelect = {
     },
   },
 } as const
+
+async function resolveUserDepartmentId(userId: string): Promise<string | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { departmentId: true, headedDepartment: { select: { id: true } } },
+  })
+  return user?.headedDepartment?.id ?? user?.departmentId ?? null
+}
 
 const ticketsRouter = Router()
 
@@ -123,6 +161,7 @@ ticketsRouter.post(
               ticketNumber,
               category: parsed.data.category,
               priority: parsed.data.priority,
+              ...(parsed.data.departmentId ? { departmentId: parsed.data.departmentId } : {}),
             }),
           },
         })
@@ -182,9 +221,23 @@ ticketsRouter.get('/', authenticate, async (req, res) => {
   }
 
   try {
-    const { page, pageSize, search, ...filters } = parsed.data
-    const where = {
+    const { page, pageSize, search, departmentId, ...filters } = parsed.data
+
+    let roleScopedFilter: Prisma.TicketWhereInput = {}
+    if (req.user!.role === UserRole.customer) {
+      roleScopedFilter = { customerId: req.user!.id }
+    } else if (req.user!.role === UserRole.agent) {
+      roleScopedFilter = { assigneeId: req.user!.id }
+    } else if (req.user!.role === UserRole.department_head) {
+      const myDeptId = await resolveUserDepartmentId(req.user!.id)
+      roleScopedFilter = { departmentId: myDeptId ?? '__none__' }
+    } else if (departmentId) {
+      roleScopedFilter = { departmentId: departmentId === 'none' ? null : departmentId }
+    }
+
+    const where: Prisma.TicketWhereInput = {
       ...filters,
+      ...roleScopedFilter,
       ...(search
         ? {
             OR: [
@@ -194,11 +247,6 @@ ticketsRouter.get('/', authenticate, async (req, res) => {
             ],
           }
         : {}),
-      ...(req.user!.role === UserRole.customer
-        ? { customerId: req.user!.id }
-        : req.user!.role === UserRole.agent
-          ? { assigneeId: req.user!.id }
-          : {}),
     }
     const [tickets, total] = await prisma.$transaction([
       prisma.ticket.findMany({
@@ -235,7 +283,7 @@ ticketsRouter.get('/', authenticate, async (req, res) => {
 ticketsRouter.get(
   '/queue',
   authenticate,
-  requireRole(UserRole.agent),
+  requireRole(UserRole.agent, UserRole.department_head),
   async (req, res) => {
     const parsed = listQueueSchema.safeParse(req.query)
 
@@ -253,8 +301,16 @@ ticketsRouter.get(
 
     try {
       const { page, pageSize, search, ...filters } = parsed.data
-      const where = {
+
+      let deptScope: Prisma.TicketWhereInput = {}
+      if (req.user!.role === UserRole.department_head) {
+        const myDeptId = await resolveUserDepartmentId(req.user!.id)
+        deptScope = { departmentId: myDeptId ?? '__none__' }
+      }
+
+      const where: Prisma.TicketWhereInput = {
         ...filters,
+        ...deptScope,
         status: TicketStatus.open,
         assigneeId: null,
         ...(search
@@ -309,6 +365,12 @@ ticketsRouter.get('/:ticketId', authenticate, async (req, res) => {
   }
 
   try {
+    let deptScopeWhere: Prisma.TicketWhereInput = {}
+    if (req.user!.role === UserRole.department_head) {
+      const myDeptId = await resolveUserDepartmentId(req.user!.id)
+      deptScopeWhere = { departmentId: myDeptId ?? '__none__' }
+    }
+
     const ticket = await prisma.ticket.findFirst({
       where: {
         ...(ticketId.toUpperCase().startsWith('TKT-')
@@ -318,7 +380,9 @@ ticketsRouter.get('/:ticketId', authenticate, async (req, res) => {
           ? { customerId: req.user!.id }
           : req.user!.role === UserRole.agent
             ? { assigneeId: req.user!.id }
-            : {}),
+            : req.user!.role === UserRole.department_head
+              ? deptScopeWhere
+              : {}),
       },
       select: {
         ...ticketSelect,
@@ -361,7 +425,7 @@ ticketsRouter.get('/:ticketId', authenticate, async (req, res) => {
 ticketsRouter.patch(
   '/:ticketId/status',
   authenticate,
-  requireRole(UserRole.agent, UserRole.admin),
+  requireRole(UserRole.agent, UserRole.department_head, UserRole.admin),
   async (req, res) => {
     const ticketId = req.params.ticketId
 
@@ -386,12 +450,22 @@ ticketsRouter.patch(
 
     try {
       const ticket = await prisma.$transaction(async (transaction) => {
+        let deptScope: Prisma.TicketWhereInput = {}
+        if (req.user!.role === UserRole.department_head) {
+          const myDeptId = await resolveUserDepartmentId(req.user!.id)
+          deptScope = { departmentId: myDeptId ?? '__none__' }
+        }
+
         const existingTicket = await transaction.ticket.findFirst({
           where: {
             ...(ticketId.toUpperCase().startsWith('TKT-')
               ? { ticketNumber: ticketId.toUpperCase() }
               : { id: ticketId }),
-            ...(req.user!.role === UserRole.agent ? { assigneeId: req.user!.id } : {}),
+            ...(req.user!.role === UserRole.agent
+              ? { assigneeId: req.user!.id }
+              : req.user!.role === UserRole.department_head
+                ? deptScope
+                : {}),
           },
           select: { id: true, status: true },
         })
@@ -455,7 +529,7 @@ ticketsRouter.patch(
 ticketsRouter.patch(
   '/:ticketId/assignee',
   authenticate,
-  requireRole(UserRole.admin),
+  requireRole(UserRole.admin, UserRole.department_head),
   async (req, res) => {
     const ticketId = req.params.ticketId
 
@@ -486,10 +560,19 @@ ticketsRouter.patch(
               ? { ticketNumber: ticketId.toUpperCase() }
               : { id: ticketId }),
           },
-          select: { id: true, assigneeId: true },
+          select: { id: true, assigneeId: true, departmentId: true },
         })
 
         if (!existingTicket) return { kind: 'ticket_not_found' as const }
+
+        // Department Head validation
+        let myDeptId: string | null = null
+        if (req.user!.role === UserRole.department_head) {
+          myDeptId = await resolveUserDepartmentId(req.user!.id)
+          if (!myDeptId || existingTicket.departmentId !== myDeptId) {
+            return { kind: 'cross_department_forbidden' as const }
+          }
+        }
 
         if (parsed.data.assigneeId !== null) {
           const assignee = await transaction.user.findFirst({
@@ -498,10 +581,24 @@ ticketsRouter.patch(
               role: UserRole.agent,
               isActive: true,
             },
-            select: { id: true },
+            select: { id: true, ...(existingTicket.departmentId || req.user!.role === UserRole.department_head ? { departmentId: true } : {}) },
           })
 
           if (!assignee) return { kind: 'invalid_assignee' as const }
+
+          // Enforce department alignment:
+          // 1. Department Head assigning: assignee must belong to their department
+          if (req.user!.role === UserRole.department_head) {
+            if (assignee.departmentId !== myDeptId) {
+              return { kind: 'assignee_not_in_department' as const }
+            }
+          }
+          // 2. Admin assigning: if ticket belongs to a department, assignee must belong to that department
+          else if (req.user!.role === UserRole.admin && existingTicket.departmentId) {
+            if (assignee.departmentId !== existingTicket.departmentId) {
+              return { kind: 'assignee_not_in_department' as const }
+            }
+          }
         }
 
         const ticket = await transaction.ticket.update({
@@ -518,6 +615,7 @@ ticketsRouter.patch(
             details: JSON.stringify({
               from: existingTicket.assigneeId,
               to: parsed.data.assigneeId,
+              ...(existingTicket.departmentId ? { departmentId: existingTicket.departmentId } : {}),
             }),
           },
         })
@@ -534,10 +632,26 @@ ticketsRouter.patch(
         return
       }
 
+      if (result.kind === 'cross_department_forbidden') {
+        res.status(403).json({
+          success: false,
+          message: 'You cannot manage tickets outside your department',
+        })
+        return
+      }
+
       if (result.kind === 'invalid_assignee') {
         res.status(422).json({
           success: false,
           message: 'Assignee must be an active agent',
+        })
+        return
+      }
+
+      if (result.kind === 'assignee_not_in_department') {
+        res.status(422).json({
+          success: false,
+          message: 'Assignee does not belong to the selected department',
         })
         return
       }
@@ -571,6 +685,109 @@ ticketsRouter.patch(
       res.status(500).json({
         success: false,
         message: 'Unable to update ticket assignment',
+      })
+    }
+  },
+)
+
+ticketsRouter.patch(
+  '/:ticketId/department',
+  authenticate,
+  requireRole(UserRole.admin),
+  async (req, res) => {
+    const ticketId = req.params.ticketId
+
+    if (typeof ticketId !== 'string') {
+      res.status(400).json({ success: false, message: 'Invalid ticket ID' })
+      return
+    }
+
+    const parsed = updateTicketDepartmentSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ success: false, message: 'Invalid department ID' })
+      return
+    }
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const existingTicket = await tx.ticket.findFirst({
+          where: {
+            ...(ticketId.toUpperCase().startsWith('TKT-')
+              ? { ticketNumber: ticketId.toUpperCase() }
+              : { id: ticketId }),
+          },
+          select: {
+            id: true,
+            departmentId: true,
+            assigneeId: true,
+            assignee: { select: { departmentId: true } },
+          },
+        })
+
+        if (!existingTicket) return { kind: 'not_found' as const }
+
+        if (parsed.data.departmentId !== null) {
+          const dept = await tx.department.findUnique({
+            where: { id: parsed.data.departmentId },
+            select: { id: true, name: true },
+          })
+          if (!dept) return { kind: 'invalid_department' as const }
+        }
+
+        // If current assignee does not belong to the new department, clear assigneeId
+        let newAssigneeId = existingTicket.assigneeId
+        if (
+          parsed.data.departmentId !== null &&
+          existingTicket.assignee &&
+          existingTicket.assignee.departmentId !== parsed.data.departmentId
+        ) {
+          newAssigneeId = null
+        }
+
+        const ticket = await tx.ticket.update({
+          where: { id: existingTicket.id },
+          data: {
+            departmentId: parsed.data.departmentId,
+            assigneeId: newAssigneeId,
+          },
+          select: ticketSelect,
+        })
+
+        await tx.auditLog.create({
+          data: {
+            ticketId: existingTicket.id,
+            userId: req.user!.id,
+            action: 'ticket.department_changed',
+            details: JSON.stringify({
+              from: existingTicket.departmentId,
+              to: parsed.data.departmentId,
+              unassignedAgent: newAssigneeId !== existingTicket.assigneeId,
+            }),
+          },
+        })
+
+        return { kind: 'updated' as const, ticket }
+      })
+
+      if (result.kind === 'not_found') {
+        res.status(404).json({ success: false, message: 'Ticket not found' })
+        return
+      }
+
+      if (result.kind === 'invalid_department') {
+        res.status(422).json({ success: false, message: 'Department not found' })
+        return
+      }
+
+      res.status(200).json({
+        success: true,
+        data: { ticket: result.ticket },
+      })
+    } catch (error) {
+      console.error('Ticket department update failed:', error)
+      res.status(500).json({
+        success: false,
+        message: 'Unable to update ticket department',
       })
     }
   },
@@ -718,6 +935,12 @@ ticketsRouter.post('/:ticketId/comments', authenticate, async (req, res) => {
   }
 
   try {
+    let commentDeptScope: Prisma.TicketWhereInput = {}
+    if (req.user!.role === UserRole.department_head) {
+      const myDeptId = await resolveUserDepartmentId(req.user!.id)
+      commentDeptScope = { departmentId: myDeptId ?? '__none__' }
+    }
+
     const ticket = await prisma.ticket.findFirst({
       where: {
         ...(ticketId.toUpperCase().startsWith('TKT-')
@@ -727,7 +950,9 @@ ticketsRouter.post('/:ticketId/comments', authenticate, async (req, res) => {
           ? { customerId: req.user!.id }
           : req.user!.role === UserRole.agent
             ? { assigneeId: req.user!.id }
-            : {}),
+            : req.user!.role === UserRole.department_head
+              ? commentDeptScope
+              : {}),
       },
       select: { id: true, customerId: true, assigneeId: true, subject: true },
     })

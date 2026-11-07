@@ -27,9 +27,22 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           { label: t('nav.assignedTickets', 'Assigned Tickets'), path: '/agent/assigned' },
           { label: t('nav.profileSettings', 'Profile & Settings'), path: '/agent/profile' },
         ];
+      case 'department_head':
+        return [
+          { label: t('nav.departmentDashboard', 'Department Dashboard'), path: '/department-head/dashboard' },
+          { label: t('nav.departmentTickets', 'Department Tickets'), path: '/department-head/tickets' },
+          { label: t('nav.profileSettings', 'Profile & Settings'), path: '/department-head/profile' },
+        ];
+      case 'head':
+        return [
+          { label: t('nav.headOverview', 'Executive Overview'), path: '/head/dashboard' },
+          { label: t('nav.allTickets', 'All Tickets'), path: '/head/tickets' },
+          { label: t('nav.profileSettings', 'Profile & Settings'), path: '/head/profile' },
+        ];
       case 'admin':
         return [
           { label: t('nav.adminDashboard', 'Admin Dashboard'), path: '/admin/dashboard' },
+          { label: t('nav.departments', 'Departments'), path: '/admin/departments' },
           { label: t('nav.allTickets', 'All Tickets'), path: '/admin/tickets' },
           { label: t('nav.usersAndAgents', 'Users & Agents'), path: '/admin/users' },
           { label: t('nav.reports', 'Reports'), path: '/admin/reports' },
@@ -103,6 +116,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         <p className="text-xs font-medium text-slate-700 capitalize">
           {role === 'admin'
             ? t('roles.admin', 'Administrator')
+            : role === 'head'
+            ? t('roles.head', 'Executive Head')
+            : role === 'department_head'
+            ? t('roles.department_head', 'Department Head')
             : role === 'agent'
             ? t('roles.agent', 'Support Agent')
             : t('roles.customer', 'Customer')}

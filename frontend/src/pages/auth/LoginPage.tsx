@@ -103,14 +103,25 @@ export function LoginPage() {
         </Button>
       </form>
 
-      <div className="pt-2 text-center text-sm text-[#64748B]">
-        {t('auth.dontHaveAccount', "Don't have an account?")}{' '}
-        <Link
-          to="/customer-registration"
-          className="font-medium text-[#2563EB] hover:text-[#1D4ED8]"
-        >
-          {t('auth.createAccount', 'Create Account')}
-        </Link>
+      <div className="pt-2 text-center text-sm text-[#64748B] space-y-2">
+        <div>
+          {t('auth.dontHaveAccount', "Don't have an account?")}{' '}
+          <Link
+            to="/customer-registration"
+            className="font-medium text-[#2563EB] hover:text-[#1D4ED8]"
+          >
+            {t('auth.createAccount', 'Create Account')}
+          </Link>
+        </div>
+        <div className="text-xs text-slate-500 border-t border-slate-100 pt-2">
+          {t('portal.needSupportGuest', 'Need support without an account?')}{' '}
+          <Link
+            to="/support"
+            className="font-medium text-slate-700 hover:text-blue-600 underline"
+          >
+            {t('portal.visitSupportPortal', 'Visit Public Support Portal')}
+          </Link>
+        </div>
       </div>
     </div>
   );

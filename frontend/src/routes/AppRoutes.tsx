@@ -25,8 +25,15 @@ import { AssignedTicketsPage } from '../pages/agent/AssignedTicketsPage';
 import { TicketWorkspacePage } from '../pages/agent/TicketWorkspacePage';
 import { AgentProfilePage } from '../pages/agent/AgentProfilePage';
 
+// Department Head Pages
+import { DepartmentHeadDashboardPage } from '../pages/departmentHead/DepartmentHeadDashboardPage';
+
+// Head Pages
+import { HeadDashboardPage } from '../pages/head/HeadDashboardPage';
+
 // Admin Pages
 import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
+import { DepartmentManagementPage } from '../pages/admin/DepartmentManagementPage';
 import { UserAgentManagementPage } from '../pages/admin/UserAgentManagementPage';
 import { ReportsAnalyticsPage } from '../pages/admin/ReportsAnalyticsPage';
 import { SystemSettingsPage } from '../pages/admin/SystemSettingsPage';
@@ -36,6 +43,11 @@ import { TicketDetailsPage } from '../pages/shared/TicketDetailsPage';
 import { AccessDeniedPage } from '../pages/utility/AccessDeniedPage';
 import { NotFoundPage } from '../pages/utility/NotFoundPage';
 
+// Public Customer Support Portal Pages
+import { PublicSupportPortalPage } from '../pages/public/PublicSupportPortalPage';
+import { PublicTicketSubmitPage } from '../pages/public/PublicTicketSubmitPage';
+import { PublicTicketTrackPage } from '../pages/public/PublicTicketTrackPage';
+
 export function AppRoutes() {
   const { isAuthenticated, role, isLoading } = useAuth();
   const { t } = useTranslation();
@@ -44,6 +56,8 @@ export function AppRoutes() {
   const getRootRedirect = () => {
     if (!isAuthenticated) return '/login';
     if (role === 'admin') return '/admin/dashboard';
+    if (role === 'head') return '/head/dashboard';
+    if (role === 'department_head') return '/department-head/dashboard';
     if (role === 'agent') return '/agent/dashboard';
     return '/customer/dashboard';
   };
@@ -63,6 +77,11 @@ export function AppRoutes() {
     <Routes>
       {/* Root redirect */}
       <Route path="/" element={<Navigate to={getRootRedirect()} replace />} />
+
+      {/* Public Support Portal Routes */}
+      <Route path="/support" element={<PublicSupportPortalPage />} />
+      <Route path="/support/submit" element={<PublicTicketSubmitPage />} />
+      <Route path="/support/track" element={<PublicTicketTrackPage />} />
 
       {/* Public Auth Routes */}
       <Route element={<AuthLayout />}>
@@ -100,12 +119,16 @@ export function AppRoutes() {
           <Route path="/customer-profile-&-settings" element={<Navigate to="/customer/profile" replace />} />
         </Route>
 
+        {/* Support Staff Ticket Workspace Route (accessible by staff & management) */}
+        <Route element={<ProtectedRoute allowedRoles={['agent', 'department_head', 'admin']} />}>
+          <Route path="/agent/tickets/:id" element={<TicketWorkspacePage />} />
+        </Route>
+
         {/* Support Agent Role Routes */}
         <Route element={<ProtectedRoute allowedRoles={['agent']} />}>
           <Route path="/agent/dashboard" element={<SupportDashboardPage />} />
           <Route path="/agent/queue" element={<SupportQueuePage />} />
           <Route path="/agent/assigned" element={<AssignedTicketsPage />} />
-          <Route path="/agent/tickets/:id" element={<TicketWorkspacePage />} />
           <Route path="/agent/profile" element={<AgentProfilePage />} />
 
           {/* Screenshot concept URL aliases */}
@@ -115,10 +138,29 @@ export function AppRoutes() {
           <Route path="/agent-profile-&-settings" element={<Navigate to="/agent/profile" replace />} />
         </Route>
 
+        {/* Department Head Role Routes */}
+        <Route element={<ProtectedRoute allowedRoles={['department_head']} />}>
+          <Route path="/department-head/dashboard" element={<DepartmentHeadDashboardPage />} />
+          <Route path="/department-head/tickets" element={<SupportQueuePage />} />
+          <Route path="/department-head/profile" element={<AgentProfilePage />} />
+
+          <Route path="/department-head" element={<Navigate to="/department-head/dashboard" replace />} />
+        </Route>
+
+        {/* Head Role Routes (Executive Operational Oversight) */}
+        <Route element={<ProtectedRoute allowedRoles={['head']} />}>
+          <Route path="/head/dashboard" element={<HeadDashboardPage />} />
+          <Route path="/head/tickets" element={<SupportQueuePage />} />
+          <Route path="/head/profile" element={<AgentProfilePage />} />
+
+          <Route path="/head" element={<Navigate to="/head/dashboard" replace />} />
+        </Route>
+
         {/* Administrator Role Routes */}
         <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
           <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
           <Route path="/admin/tickets" element={<SupportQueuePage />} />
+          <Route path="/admin/departments" element={<DepartmentManagementPage />} />
           <Route path="/admin/users" element={<UserAgentManagementPage />} />
           <Route path="/admin/reports" element={<ReportsAnalyticsPage />} />
           <Route path="/admin/settings" element={<SystemSettingsPage />} />
@@ -126,6 +168,7 @@ export function AppRoutes() {
           {/* Screenshot concept URL aliases */}
           <Route path="/admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="/all-tickets" element={<Navigate to="/admin/tickets" replace />} />
+          <Route path="/departments" element={<Navigate to="/admin/departments" replace />} />
           <Route path="/user-&-agent-management" element={<Navigate to="/admin/users" replace />} />
           <Route path="/reports-&-analytics" element={<Navigate to="/admin/reports" replace />} />
           <Route path="/system-settings-&-categories" element={<Navigate to="/admin/settings" replace />} />

@@ -7,10 +7,16 @@ import { Select } from '../../components/common/Select';
 import { Button } from '../../components/common/Button';
 import { PriorityBadge, StatusBadge } from '../../components/common/Badge';
 import { Alert } from '../../components/common/Alert';
+import { AttachmentList } from '../../components/common/AttachmentList';
+import { FileUploadZone } from '../../components/common/FileUploadZone';
 import { useAuth } from '../../context/AuthContext';
 import { ticketApi } from '../../api/tickets.api';
+import { departmentApi } from '../../api/departments.api';
 import { userApi, type AgentItem } from '../../api/users.api';
-import type { Ticket } from '../../types/ticket';
+import { attachmentsApi } from '../../api/attachments.api';
+import type { Ticket, Attachment } from '../../types/ticket';
+import type { Department } from '../../types/auth';
+import { Paperclip, Plus, X } from 'lucide-react';
 
 export function TicketDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -25,7 +31,17 @@ export function TicketDetailsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
+  const [isUpdatingDept, setIsUpdatingDept] = useState(false);
+
+  // Attachments state
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [showUploadZone, setShowUploadZone] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [deletingAttId, setDeletingAttId] = useState<string | null>(null);
+
   const [activeAgents, setActiveAgents] = useState<AgentItem[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedAssignee, setSelectedAssignee] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -38,6 +54,7 @@ export function TicketDetailsPage() {
         const data = await ticketApi.getTicketById(id);
         if (isMounted) {
           setTicket(data);
+          setAttachments(data.attachments || []);
           setSelectedAssignee(data.assignee?.id || '');
           setError(null);
         }
@@ -57,10 +74,16 @@ export function TicketDetailsPage() {
   }, [id, refreshTrigger, t]);
 
   useEffect(() => {
-    if (user?.role === 'admin') {
+    if (user?.role === 'admin' || user?.role === 'department_head') {
       userApi
         .getAgents({ page: 1, pageSize: 100 })
         .then((res) => setActiveAgents(res.agents))
+        .catch(() => {});
+    }
+    if (user?.role === 'admin') {
+      departmentApi
+        .getDepartments({ page: 1, pageSize: 100 })
+        .then((res) => setDepartments(res.departments))
         .catch(() => {});
     }
   }, [user?.role]);
@@ -96,7 +119,7 @@ export function TicketDetailsPage() {
     try {
       const assigneeParam = newAssigneeId === '' ? null : newAssigneeId;
       const updated = await ticketApi.assignTicket(id, assigneeParam);
-      setTicket((prev) => (prev ? { ...prev, ...updated, comments: prev.comments } : updated));
+      setTicket((prev) => (prev ? { ...prev, ...updated, comments: prev.comments, attachments: prev.attachments } : updated));
       setSelectedAssignee(newAssigneeId);
       setSuccessMessage(t('tickets.assignmentUpdated'));
       setTimeout(() => setSuccessMessage(null), 3500);
@@ -104,6 +127,64 @@ export function TicketDetailsPage() {
       setError(err instanceof Error ? err.message : t('tickets.unableToRetrieve'));
     } finally {
       setIsAssigning(false);
+    }
+  };
+
+  const handleDepartmentChange = async (newDeptId: string) => {
+    if (!id) return;
+    setIsUpdatingDept(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const deptParam = newDeptId === '' ? null : newDeptId;
+      const updated = await ticketApi.updateTicketDepartment(id, deptParam);
+      setTicket((prev) => (prev ? { ...prev, ...updated, comments: prev.comments, attachments: prev.attachments } : updated));
+      setSelectedAssignee(updated.assignee?.id || '');
+      setSuccessMessage(t('tickets.departmentChanged', 'Department updated successfully.'));
+      setTimeout(() => setSuccessMessage(null), 3500);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update ticket department');
+    } finally {
+      setIsUpdatingDept(false);
+    }
+  };
+
+  const handleUploadFiles = async () => {
+    if (!id || pendingFiles.length === 0) return;
+    setIsUploading(true);
+    setError(null);
+
+    try {
+      const newAttachments = await attachmentsApi.uploadAttachments(id, pendingFiles);
+      setAttachments((prev) => [...prev, ...newAttachments]);
+      setPendingFiles([]);
+      setShowUploadZone(false);
+      setSuccessMessage(t('attachments.uploadedSuccess', 'Files attached successfully.'));
+      setTimeout(() => setSuccessMessage(null), 3500);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to upload attachments.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (attId: string) => {
+    if (!id) return;
+    if (!window.confirm(t('attachments.deleteConfirm', 'Are you sure you want to delete this attachment?'))) return;
+
+    setDeletingAttId(attId);
+    setError(null);
+
+    try {
+      await attachmentsApi.deleteAttachment(id, attId);
+      setAttachments((prev) => prev.filter((a) => a.id !== attId));
+      setSuccessMessage(t('attachments.deletedSuccess', 'Attachment deleted.'));
+      setTimeout(() => setSuccessMessage(null), 3500);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete attachment.');
+    } finally {
+      setDeletingAttId(null);
     }
   };
 
@@ -131,19 +212,37 @@ export function TicketDetailsPage() {
 
   if (!ticket) return null;
 
+  // Filter agents by ticket department for Admin if ticket has a department
+  const eligibleAgents =
+    user?.role === 'admin' && ticket.departmentId
+      ? activeAgents.filter((ag) => ag.departmentId === ticket.departmentId)
+      : activeAgents;
+
   const agentOptions = [
     { value: '', label: t('tickets.unassigned') },
-    ...activeAgents.map((ag) => ({
+    ...eligibleAgents.map((ag) => ({
       value: ag.id,
       label: ag.name,
     })),
   ];
-  if (ticket.assignee && !activeAgents.some((ag) => ag.id === ticket.assignee!.id)) {
+  if (ticket.assignee && !agentOptions.some((ag) => ag.value === ticket.assignee!.id)) {
     agentOptions.push({
       value: ticket.assignee.id,
       label: ticket.assignee.name,
     });
   }
+
+  const canManageAssignment =
+    user?.role === 'admin' ||
+    (user?.role === 'department_head' && ticket.departmentId && user.departmentId === ticket.departmentId);
+
+  const canUpload =
+    ticket.status !== 'closed' &&
+    user?.role !== 'head' &&
+    (user?.role === 'admin' ||
+      ticket.customerId === user?.id ||
+      ticket.assigneeId === user?.id ||
+      user?.role === 'department_head');
 
   return (
     <div className="space-y-6">
@@ -163,8 +262,8 @@ export function TicketDetailsPage() {
         </p>
       </div>
 
-      {error && <Alert type="error">{error}</Alert>}
-      {successMessage && <Alert type="success">{successMessage}</Alert>}
+      {error && <Alert type="error" onDismiss={() => setError(null)}>{error}</Alert>}
+      {successMessage && <Alert type="success" onDismiss={() => setSuccessMessage(null)}>{successMessage}</Alert>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left Column: Conversation */}
@@ -178,7 +277,7 @@ export function TicketDetailsPage() {
               <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 mb-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-[#0F172A]">
-                    {ticket.customer?.name || t('common.customer')}
+                    {ticket.customer?.name || ticket.guestName || t('common.customer')}
                   </span>
                   <span className="text-[11px] text-slate-400">
                     {new Date(ticket.createdAt).toLocaleString(locale, {
@@ -246,8 +345,8 @@ export function TicketDetailsPage() {
           </Card>
         </div>
 
-        {/* Right Column: Ticket details */}
-        <div>
+        {/* Right Column: Ticket details & Attachments */}
+        <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>{t('tickets.ticketDetails')}</CardTitle>
@@ -257,13 +356,19 @@ export function TicketDetailsPage() {
                 <div>
                   <span className="text-slate-400 block text-xs">{t('common.customer')}</span>
                   <span className="font-semibold text-[#0F172A]">
-                    {ticket.customer?.name || t('common.you')}
+                    {ticket.customer?.name || ticket.guestName || t('common.you')}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-xs">{t('tickets.category')}</span>
                   <span className="font-medium text-slate-700 capitalize">
                     {ticket.category}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-xs">{t('tickets.department', 'Department')}</span>
+                  <span className="font-medium text-slate-700">
+                    {ticket.department?.name || <span className="text-slate-400 italic">{t('common.none', 'None (Unassigned)')}</span>}
                   </span>
                 </div>
                 <div>
@@ -281,7 +386,27 @@ export function TicketDetailsPage() {
                   </span>
                 </div>
 
+                {/* Admin Department Control */}
                 {user?.role === 'admin' && (
+                  <div className="pt-3 border-t border-[#E2E8F0]">
+                    <Select
+                      label={t('tickets.assignDepartment', 'Department')}
+                      value={ticket.departmentId || ''}
+                      disabled={isUpdatingDept}
+                      onChange={(e) => handleDepartmentChange(e.target.value)}
+                      options={[
+                        { value: '', label: t('common.none', 'None (Unassigned)') },
+                        ...departments.map((dept) => ({
+                          value: dept.id,
+                          label: dept.name,
+                        })),
+                      ]}
+                    />
+                  </div>
+                )}
+
+                {/* Assignment Control (Admin or Department Head) */}
+                {canManageAssignment && (
                   <div className="pt-3 border-t border-[#E2E8F0]">
                     <Select
                       label={t('tickets.assignAgent')}
@@ -293,6 +418,60 @@ export function TicketDetailsPage() {
                   </div>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Attachments Card */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-sm font-bold flex items-center gap-1.5">
+                <Paperclip className="w-4 h-4 text-slate-600" />
+                <span>{t('attachments.title', 'Attachments')}</span>
+                <span className="text-xs text-slate-400">({attachments.length})</span>
+              </CardTitle>
+
+              {canUpload && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowUploadZone((prev) => !prev)}
+                  className="text-xs text-blue-600 hover:text-blue-700 p-1"
+                >
+                  {showUploadZone ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {showUploadZone && (
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <FileUploadZone
+                    files={pendingFiles}
+                    onChange={setPendingFiles}
+                    maxFiles={5 - attachments.length}
+                    maxSizeMB={10}
+                    disabled={isUploading}
+                  />
+                  {pendingFiles.length > 0 && (
+                    <Button
+                      size="sm"
+                      className="w-full justify-center"
+                      isLoading={isUploading}
+                      disabled={isUploading}
+                      onClick={handleUploadFiles}
+                    >
+                      {t('attachments.uploadFilesButton', 'Upload Selected Files')}
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              <AttachmentList
+                attachments={attachments}
+                getDownloadUrl={(attId) => attachmentsApi.getDownloadUrl(ticket.id, attId)}
+                onDelete={handleDeleteAttachment}
+                canDelete={user?.role === 'admin' || ticket.status !== 'closed'}
+                deletingId={deletingAttId}
+              />
             </CardContent>
           </Card>
         </div>
