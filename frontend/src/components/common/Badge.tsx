@@ -91,6 +91,8 @@ export function RoleBadge({ role }: { role: UserRole }) {
   const config: Record<UserRole, { key: string; defaultLabel: string; variant: BadgeVariant }> = {
     customer: { key: 'roles.customer', defaultLabel: 'Customer', variant: 'slate' },
     agent: { key: 'roles.agent', defaultLabel: 'Support Agent', variant: 'blue' },
+    department_head: { key: 'roles.department_head', defaultLabel: 'Department Head', variant: 'indigo' },
+    head: { key: 'roles.head', defaultLabel: 'Head', variant: 'amber' },
     admin: { key: 'roles.admin', defaultLabel: 'Administrator', variant: 'purple' },
   };
 

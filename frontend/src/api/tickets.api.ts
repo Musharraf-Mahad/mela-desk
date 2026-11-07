@@ -23,6 +23,7 @@ export const ticketApi = {
     if (params?.status && params.status !== 'all') query.status = params.status;
     if (params?.priority && params.priority !== 'all') query.priority = params.priority;
     if (params?.category && params.category !== 'all') query.category = params.category;
+    if (params?.departmentId && params.departmentId !== 'all') query.departmentId = params.departmentId;
     if (params?.search && params.search.trim()) query.search = params.search.trim();
     if (params?.page) query.page = params.page;
     if (params?.pageSize) query.pageSize = params.pageSize;
@@ -90,6 +91,17 @@ export const ticketApi = {
     );
     if (!res.data.data?.ticket) {
       throw new Error(res.data.message || 'Failed to update ticket assignee');
+    }
+    return res.data.data.ticket;
+  },
+
+  async updateTicketDepartment(ticketId: string, departmentId: string | null): Promise<Ticket> {
+    const res = await apiClient.patch<ApiResponse<{ ticket: Ticket }>>(
+      `/tickets/${ticketId}/department`,
+      { departmentId }
+    );
+    if (!res.data.data?.ticket) {
+      throw new Error(res.data.message || 'Failed to update ticket department');
     }
     return res.data.data.ticket;
   },

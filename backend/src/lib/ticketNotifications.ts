@@ -106,3 +106,28 @@ export async function sendTicketEmailNotification({
     )
   }
 }
+
+
+export async function sendDirectEmail({
+  to,
+  subject,
+  text,
+}: {
+  to: string
+  subject: string
+  text: string
+}): Promise<void> {
+  try {
+    const mailer = getTransporter()
+    if (!mailer) return
+
+    await mailer.transport.sendMail({
+      from: mailer.from,
+      to,
+      subject,
+      text,
+    })
+  } catch (error) {
+    console.error('Direct email notification could not be sent:', error)
+  }
+}

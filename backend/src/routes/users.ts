@@ -10,6 +10,7 @@ const listAgentsSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().optional(),
+  departmentId: z.string().trim().optional(),
   includeInactive: z
     .preprocess((val) => {
       if (typeof val === 'string') return val === 'true' || val === '1'
@@ -34,6 +35,7 @@ const createAgentSchema = z.object({
   name: z.string().trim().min(1).max(120),
   email: z.string().trim().email().max(255).transform((email) => email.toLowerCase()),
   password: z.string().min(12).max(128),
+  departmentId: z.string().trim().min(1).max(191).optional().nullable(),
 })
 
 const resetAgentPasswordSchema = z.object({
@@ -72,6 +74,7 @@ usersRouter.post(
             email: parsed.data.email,
             passwordHash,
             role: UserRole.agent,
+            ...(parsed.data.departmentId ? { departmentId: parsed.data.departmentId } : {}),
           },
           select: {
             id: true,
@@ -147,7 +150,7 @@ usersRouter.patch(
       })
       const result = await prisma.$transaction(async (transaction) => {
         const existingAgent = await transaction.user.findFirst({
-          where: { id: agentId, role: UserRole.agent },
+          where: { id: agentId, role: { in: [UserRole.agent, UserRole.department_head] } },
           select: { id: true },
         })
 
@@ -194,7 +197,7 @@ usersRouter.patch(
 usersRouter.get(
   '/agents',
   authenticate,
-  requireRole(UserRole.admin),
+  requireRole(UserRole.admin, UserRole.head, UserRole.department_head),
   async (req, res) => {
     const parsed = listAgentsSchema.safeParse(req.query)
 
@@ -211,11 +214,28 @@ usersRouter.get(
     }
 
     try {
-      const { page, pageSize, search, includeInactive, status } = parsed.data
+      const { page, pageSize, search, includeInactive, status, departmentId } = parsed.data
       const shouldIncludeInactive = Boolean(includeInactive || status === 'all')
 
+      let deptFilter: Prisma.UserWhereInput = {}
+      let roleFilter: Prisma.UserWhereInput['role'] = UserRole.agent
+
+      if (req.user!.role === UserRole.department_head) {
+        const user = await prisma.user.findUnique({
+          where: { id: req.user!.id },
+          select: { departmentId: true, headedDepartment: { select: { id: true } } },
+        })
+        const myDeptId = user?.headedDepartment?.id ?? user?.departmentId
+        deptFilter = { departmentId: myDeptId ?? '__none__' }
+        roleFilter = { in: [UserRole.agent, UserRole.department_head] }
+      } else if (departmentId) {
+        deptFilter = { departmentId: departmentId === 'none' ? null : departmentId }
+        roleFilter = { in: [UserRole.agent, UserRole.department_head] }
+      }
+
       const where: Prisma.UserWhereInput = {
-        role: UserRole.agent,
+        role: roleFilter,
+        ...deptFilter,
         ...(status === 'inactive'
           ? { isActive: false }
           : shouldIncludeInactive

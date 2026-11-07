@@ -8,6 +8,8 @@ export interface AgentItem {
   email: string;
   role?: string;
   isActive?: boolean;
+  departmentId?: string | null;
+  department?: { id: string; name: string } | null;
 }
 
 export interface CustomerItem {
@@ -39,6 +41,7 @@ export const userApi = {
     search?: string;
     includeInactive?: boolean;
     status?: string;
+    departmentId?: string;
   }): Promise<PaginatedAgents> {
     const res = await apiClient.get<ApiResponse<PaginatedAgents>>('/users/agents', { params });
     if (!res.data.data) {
@@ -51,6 +54,7 @@ export const userApi = {
     page?: number;
     pageSize?: number;
     search?: string;
+    includeInactive?: boolean;
     status?: string;
   }): Promise<PaginatedCustomers> {
     const res = await apiClient.get<ApiResponse<PaginatedCustomers>>('/users/customers', { params });
@@ -60,7 +64,7 @@ export const userApi = {
     return res.data.data;
   },
 
-  async createAgent(data: RegisterData): Promise<User> {
+  async createAgent(data: RegisterData & { departmentId?: string }): Promise<User> {
     const res = await apiClient.post<ApiResponse<{ agent: User }>>('/users/agents', data);
     if (!res.data.data?.agent) {
       throw new Error(res.data.message || 'Failed to create agent');
@@ -83,5 +87,9 @@ export const userApi = {
       throw new Error(res.data.message || 'Failed to update user status');
     }
     return res.data.data.user;
+  },
+
+  async updateStatus(userId: string, isActive: boolean): Promise<User> {
+    return this.updateUserStatus(userId, isActive);
   },
 };
