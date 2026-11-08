@@ -12,6 +12,7 @@ import { attachmentsRouter } from './routes/attachments.js'
 import { publicRouter } from './routes/publicTickets.js'
 import usersRouter from './routes/users.js'
 import { knowledgeBaseRouter } from './routes/knowledgeBase.js'
+import reportsRouter from './routes/reports.js'
 
 const app = express()
 
@@ -26,6 +27,7 @@ app.use('/api/tickets', ticketsRouter)
 app.use('/api/users', usersRouter)
 app.use('/api/audit-logs', auditLogsRouter)
 app.use('/api/knowledge-base', knowledgeBaseRouter)
+app.use('/api/reports', reportsRouter)
 
 app.get('/', (_req, res) => {
   res.json({

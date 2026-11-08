@@ -167,7 +167,6 @@ export function AppRoutes() {
           <Route path="/admin/tickets" element={<SupportQueuePage />} />
           <Route path="/admin/departments" element={<DepartmentManagementPage />} />
           <Route path="/admin/users" element={<UserAgentManagementPage />} />
-          <Route path="/admin/reports" element={<ReportsAnalyticsPage />} />
           <Route path="/admin/settings" element={<SystemSettingsPage />} />
 
           {/* Screenshot concept URL aliases */}
@@ -175,8 +174,13 @@ export function AppRoutes() {
           <Route path="/all-tickets" element={<Navigate to="/admin/tickets" replace />} />
           <Route path="/departments" element={<Navigate to="/admin/departments" replace />} />
           <Route path="/user-&-agent-management" element={<Navigate to="/admin/users" replace />} />
-          <Route path="/reports-&-analytics" element={<Navigate to="/admin/reports" replace />} />
           <Route path="/system-settings-&-categories" element={<Navigate to="/admin/settings" replace />} />
+        </Route>
+
+        {/* Reports & Analytics Staff Route */}
+        <Route element={<ProtectedRoute allowedRoles={['admin', 'department_head', 'head', 'agent']} />}>
+          <Route path="/admin/reports" element={<ReportsAnalyticsPage />} />
+          <Route path="/reports-&-analytics" element={<Navigate to="/admin/reports" replace />} />
         </Route>
 
         {/* Knowledge Base Staff Management Route */}
