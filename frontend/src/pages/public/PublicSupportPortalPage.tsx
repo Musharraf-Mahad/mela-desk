@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
-import { LifeBuoy, FilePlus2, Search, LogIn, Globe } from 'lucide-react';
+import { LifeBuoy, FilePlus2, Search, LogIn, Globe, BookOpen } from 'lucide-react';
 
 export function PublicSupportPortalPage() {
   const { t, i18n } = useTranslation();
@@ -97,6 +97,28 @@ export function PublicSupportPortalPage() {
               </Link>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Knowledge Base Card */}
+        <div className="mt-6 p-6 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shrink-0">
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                {t('kb.title', 'Knowledge Base')}
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                {t('kb.portalCardDesc', 'Search our repository of troubleshooting guides, tutorials, and FAQs before submitting a ticket.')}
+              </p>
+            </div>
+          </div>
+          <Link to="/knowledge-base" className="shrink-0 w-full sm:w-auto">
+            <Button variant="secondary" className="w-full sm:w-auto justify-center">
+              {t('kb.exploreArticles', 'Explore Articles')}
+            </Button>
+          </Link>
         </div>
 
         <div className="mt-10 text-center text-xs text-slate-500">

@@ -37,16 +37,19 @@ import { DepartmentManagementPage } from '../pages/admin/DepartmentManagementPag
 import { UserAgentManagementPage } from '../pages/admin/UserAgentManagementPage';
 import { ReportsAnalyticsPage } from '../pages/admin/ReportsAnalyticsPage';
 import { SystemSettingsPage } from '../pages/admin/SystemSettingsPage';
+import { AdminKnowledgeBasePage } from '../pages/admin/AdminKnowledgeBasePage';
 
 // Shared & Utility Pages
 import { TicketDetailsPage } from '../pages/shared/TicketDetailsPage';
 import { AccessDeniedPage } from '../pages/utility/AccessDeniedPage';
 import { NotFoundPage } from '../pages/utility/NotFoundPage';
 
-// Public Customer Support Portal Pages
+// Public Customer Support Portal & Knowledge Base Pages
 import { PublicSupportPortalPage } from '../pages/public/PublicSupportPortalPage';
 import { PublicTicketSubmitPage } from '../pages/public/PublicTicketSubmitPage';
 import { PublicTicketTrackPage } from '../pages/public/PublicTicketTrackPage';
+import { KnowledgeBasePage } from '../pages/public/KnowledgeBasePage';
+import { ArticleDetailPage } from '../pages/public/ArticleDetailPage';
 
 export function AppRoutes() {
   const { isAuthenticated, role, isLoading } = useAuth();
@@ -78,10 +81,12 @@ export function AppRoutes() {
       {/* Root redirect */}
       <Route path="/" element={<Navigate to={getRootRedirect()} replace />} />
 
-      {/* Public Support Portal Routes */}
+      {/* Public Support Portal & Knowledge Base Routes */}
       <Route path="/support" element={<PublicSupportPortalPage />} />
       <Route path="/support/submit" element={<PublicTicketSubmitPage />} />
       <Route path="/support/track" element={<PublicTicketTrackPage />} />
+      <Route path="/knowledge-base" element={<KnowledgeBasePage />} />
+      <Route path="/knowledge-base/:slug" element={<ArticleDetailPage />} />
 
       {/* Public Auth Routes */}
       <Route element={<AuthLayout />}>
@@ -172,6 +177,12 @@ export function AppRoutes() {
           <Route path="/user-&-agent-management" element={<Navigate to="/admin/users" replace />} />
           <Route path="/reports-&-analytics" element={<Navigate to="/admin/reports" replace />} />
           <Route path="/system-settings-&-categories" element={<Navigate to="/admin/settings" replace />} />
+        </Route>
+
+        {/* Knowledge Base Staff Management Route */}
+        <Route element={<ProtectedRoute allowedRoles={['admin', 'department_head', 'head', 'agent']} />}>
+          <Route path="/admin/knowledge-base" element={<AdminKnowledgeBasePage />} />
+          <Route path="/knowledge-base/manage" element={<Navigate to="/admin/knowledge-base" replace />} />
         </Route>
 
         {/* Shared Authenticated Routes */}
