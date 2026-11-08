@@ -7,6 +7,7 @@ import { Textarea } from '../../components/common/Textarea';
 import { Button } from '../../components/common/Button';
 import { Card, CardContent } from '../../components/common/Card';
 import { Alert } from '../../components/common/Alert';
+import { SuggestedArticlesBox } from '../../components/knowledgeBase/SuggestedArticlesBox';
 import { ticketApi } from '../../api/tickets.api';
 import type { TicketCategory, TicketPriority } from '../../types/ticket';
 
@@ -81,6 +82,9 @@ export function CreateTicketPage() {
                 onChange={(e) => setSubject(e.target.value)}
                 required
               />
+
+              {/* Suggested Knowledge Base Articles */}
+              <SuggestedArticlesBox query={subject || description} />
 
               <Select
                 label={t('tickets.category', 'Category')}

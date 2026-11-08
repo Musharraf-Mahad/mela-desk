@@ -25,18 +25,21 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           { label: t('nav.supportDashboard', 'Support Dashboard'), path: '/agent/dashboard' },
           { label: t('nav.supportQueue', 'Support Queue'), path: '/agent/queue' },
           { label: t('nav.assignedTickets', 'Assigned Tickets'), path: '/agent/assigned' },
+          { label: t('nav.knowledgeBase', 'Knowledge Base'), path: '/admin/knowledge-base' },
           { label: t('nav.profileSettings', 'Profile & Settings'), path: '/agent/profile' },
         ];
       case 'department_head':
         return [
           { label: t('nav.departmentDashboard', 'Department Dashboard'), path: '/department-head/dashboard' },
           { label: t('nav.departmentTickets', 'Department Tickets'), path: '/department-head/tickets' },
+          { label: t('nav.knowledgeBase', 'Knowledge Base'), path: '/admin/knowledge-base' },
           { label: t('nav.profileSettings', 'Profile & Settings'), path: '/department-head/profile' },
         ];
       case 'head':
         return [
           { label: t('nav.headOverview', 'Executive Overview'), path: '/head/dashboard' },
           { label: t('nav.allTickets', 'All Tickets'), path: '/head/tickets' },
+          { label: t('nav.knowledgeBase', 'Knowledge Base'), path: '/admin/knowledge-base' },
           { label: t('nav.profileSettings', 'Profile & Settings'), path: '/head/profile' },
         ];
       case 'admin':
@@ -44,6 +47,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           { label: t('nav.adminDashboard', 'Admin Dashboard'), path: '/admin/dashboard' },
           { label: t('nav.departments', 'Departments'), path: '/admin/departments' },
           { label: t('nav.allTickets', 'All Tickets'), path: '/admin/tickets' },
+          { label: t('nav.knowledgeBase', 'Knowledge Base'), path: '/admin/knowledge-base' },
           { label: t('nav.usersAndAgents', 'Users & Agents'), path: '/admin/users' },
           { label: t('nav.reports', 'Reports'), path: '/admin/reports' },
           { label: t('nav.systemSettings', 'System Settings'), path: '/admin/settings' },
@@ -54,6 +58,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           { label: t('nav.dashboard', 'Dashboard'), path: '/customer/dashboard' },
           { label: t('nav.myTickets', 'My Tickets'), path: '/customer/tickets' },
           { label: t('nav.createTicket', 'Create Ticket'), path: '/customer/create-ticket' },
+          { label: t('nav.knowledgeBase', 'Knowledge Base'), path: '/knowledge-base' },
           { label: t('nav.profileSettings', 'Profile & Settings'), path: '/customer/profile' },
         ];
     }

@@ -8,6 +8,7 @@ import { Select } from '../../components/common/Select';
 import { Button } from '../../components/common/Button';
 import { Alert } from '../../components/common/Alert';
 import { FileUploadZone } from '../../components/common/FileUploadZone';
+import { SuggestedArticlesBox } from '../../components/knowledgeBase/SuggestedArticlesBox';
 import { publicTicketApi } from '../../api/publicTickets.api';
 import type { TicketCategory, PublicTicketSubmissionResponse } from '../../types/ticket';
 import {
@@ -253,6 +254,9 @@ export function PublicTicketSubmitPage() {
                   ]}
                 />
               </div>
+
+              {/* Suggested Knowledge Base Articles */}
+              <SuggestedArticlesBox query={subject || description} />
 
               <Textarea
                 label={t('tickets.description', 'Description *')}
