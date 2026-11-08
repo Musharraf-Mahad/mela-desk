@@ -26,6 +26,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           { label: t('nav.supportQueue', 'Support Queue'), path: '/agent/queue' },
           { label: t('nav.assignedTickets', 'Assigned Tickets'), path: '/agent/assigned' },
           { label: t('nav.knowledgeBase', 'Knowledge Base'), path: '/admin/knowledge-base' },
+          { label: t('nav.reports', 'Reports'), path: '/admin/reports' },
           { label: t('nav.profileSettings', 'Profile & Settings'), path: '/agent/profile' },
         ];
       case 'department_head':
@@ -33,6 +34,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           { label: t('nav.departmentDashboard', 'Department Dashboard'), path: '/department-head/dashboard' },
           { label: t('nav.departmentTickets', 'Department Tickets'), path: '/department-head/tickets' },
           { label: t('nav.knowledgeBase', 'Knowledge Base'), path: '/admin/knowledge-base' },
+          { label: t('nav.reports', 'Reports'), path: '/admin/reports' },
           { label: t('nav.profileSettings', 'Profile & Settings'), path: '/department-head/profile' },
         ];
       case 'head':
@@ -40,6 +42,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           { label: t('nav.headOverview', 'Executive Overview'), path: '/head/dashboard' },
           { label: t('nav.allTickets', 'All Tickets'), path: '/head/tickets' },
           { label: t('nav.knowledgeBase', 'Knowledge Base'), path: '/admin/knowledge-base' },
+          { label: t('nav.reports', 'Reports'), path: '/admin/reports' },
           { label: t('nav.profileSettings', 'Profile & Settings'), path: '/head/profile' },
         ];
       case 'admin':
