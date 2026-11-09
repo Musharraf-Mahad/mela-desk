@@ -1,11 +1,18 @@
 import { Prisma, TicketCategory, TicketPriority, TicketStatus, UserRole } from '@prisma/client'
 import { Router } from 'express'
+import fs from 'node:fs'
 import { z } from 'zod'
 import { authenticate, requireRole } from '../middleware/authenticate.js'
 import { prisma } from '../lib/prisma.js'
 import { publishTicketEvent } from '../lib/ticketEvents.js'
 import { sendTicketEmailNotification } from '../lib/ticketNotifications.js'
 import { allocateNextTicketNumber } from '../lib/ticketNumber.js'
+import {
+  parseMultipartFormData,
+  saveAttachmentFile,
+  MAX_ATTACHMENTS_PER_TICKET,
+  type StoredAttachment,
+} from '../lib/fileStorage.js'
 
 const createTicketSchema = z.object({
   subject: z.string().trim().min(1).max(255),
@@ -126,18 +133,75 @@ ticketsRouter.post(
   authenticate,
   requireRole(UserRole.customer),
   async (req, res) => {
-    const parsed = createTicketSchema.safeParse(req.body)
+    const isMultipart = req.headers['content-type']?.includes('multipart/form-data')
 
-    if (!parsed.success) {
+    let parsedBody: z.infer<typeof createTicketSchema>
+    let uploadedFiles: Array<{ originalFilename: string; buffer: Buffer; size: number; declaredMimeType: string }> = []
+
+    if (isMultipart) {
+      try {
+        const { fields, files } = await parseMultipartFormData(req)
+        const parsed = createTicketSchema.safeParse(fields)
+        if (!parsed.success) {
+          res.status(400).json({
+            success: false,
+            message: 'Invalid ticket details',
+            errors: parsed.error.issues.map(({ path, message }) => ({
+              field: path.join('.'),
+              message,
+            })),
+          })
+          return
+        }
+        parsedBody = parsed.data
+        uploadedFiles = files
+      } catch (err: unknown) {
+        res.status(400).json({
+          success: false,
+          message: err instanceof Error ? err.message : 'Failed to parse form data',
+        })
+        return
+      }
+    } else {
+      const parsed = createTicketSchema.safeParse(req.body)
+      if (!parsed.success) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid ticket details',
+          errors: parsed.error.issues.map(({ path, message }) => ({
+            field: path.join('.'),
+            message,
+          })),
+        })
+        return
+      }
+      parsedBody = parsed.data
+    }
+
+    if (uploadedFiles.length > MAX_ATTACHMENTS_PER_TICKET) {
       res.status(400).json({
         success: false,
-        message: 'Invalid ticket details',
-        errors: parsed.error.issues.map(({ path, message }) => ({
-          field: path.join('.'),
-          message,
-        })),
+        message: `You can upload at most ${MAX_ATTACHMENTS_PER_TICKET} attachments per ticket.`,
       })
       return
+    }
+
+    const savedAttachments: StoredAttachment[] = []
+    for (const file of uploadedFiles) {
+      const saveResult = await saveAttachmentFile(file)
+      if (!saveResult.success) {
+        for (const a of savedAttachments) {
+          try {
+            if (fs.existsSync(a.storagePath)) fs.unlinkSync(a.storagePath)
+          } catch {}
+        }
+        res.status(422).json({
+          success: false,
+          message: saveResult.error,
+        })
+        return
+      }
+      savedAttachments.push(saveResult.attachment)
     }
 
     try {
@@ -145,12 +209,38 @@ ticketsRouter.post(
         const ticketNumber = await allocateNextTicketNumber(transaction)
         const createdTicket = await transaction.ticket.create({
           data: {
-            ...parsed.data,
+            ...parsedBody,
             ticketNumber,
             customerId: req.user!.id,
           },
           select: ticketSelect,
         })
+
+        for (const att of savedAttachments) {
+          await transaction.attachment.create({
+            data: {
+              ticketId: createdTicket.id,
+              originalFilename: att.originalFilename,
+              storedFilename: att.storedFilename,
+              mimeType: att.mimeType,
+              fileSize: att.fileSize,
+              storagePath: att.storagePath,
+              uploadedById: req.user!.id,
+            },
+          })
+          await transaction.auditLog.create({
+            data: {
+              ticketId: createdTicket.id,
+              userId: req.user!.id,
+              action: 'attachment.uploaded',
+              details: JSON.stringify({
+                originalFilename: att.originalFilename,
+                fileSize: att.fileSize,
+                mimeType: att.mimeType,
+              }),
+            },
+          })
+        }
 
         await transaction.auditLog.create({
           data: {
@@ -159,12 +249,23 @@ ticketsRouter.post(
             action: 'ticket.created',
             details: JSON.stringify({
               ticketNumber,
-              category: parsed.data.category,
-              priority: parsed.data.priority,
-              ...(parsed.data.departmentId ? { departmentId: parsed.data.departmentId } : {}),
+              category: parsedBody.category,
+              priority: parsedBody.priority,
+              ...(parsedBody.departmentId ? { departmentId: parsedBody.departmentId } : {}),
             }),
           },
         })
+
+        if (savedAttachments.length > 0) {
+          const freshAttachments = await transaction.attachment.findMany({
+            where: { ticketId: createdTicket.id },
+            select: ticketSelect.attachments.select,
+          })
+          return {
+            ...createdTicket,
+            attachments: freshAttachments,
+          }
+        }
 
         return createdTicket
       })
@@ -196,6 +297,11 @@ ticketsRouter.post(
         data: { ticket },
       })
     } catch (error) {
+      for (const a of savedAttachments) {
+        try {
+          if (fs.existsSync(a.storagePath)) fs.unlinkSync(a.storagePath)
+        } catch {}
+      }
       console.error('Ticket creation failed:', error)
       res.status(500).json({
         success: false,

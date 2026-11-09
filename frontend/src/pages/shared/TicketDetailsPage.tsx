@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/common/Card';
@@ -39,6 +39,10 @@ export function TicketDetailsPage() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [deletingAttId, setDeletingAttId] = useState<string | null>(null);
+
+  // Reply attachments state
+  const [replyFiles, setReplyFiles] = useState<File[]>([]);
+  const replyFileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeAgents, setActiveAgents] = useState<AgentItem[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -88,18 +92,71 @@ export function TicketDetailsPage() {
     }
   }, [user?.role]);
 
+  const ALLOWED_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf', '.txt', '.csv', '.docx', '.xlsx'];
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleReplyFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    setError(null);
+    const addedList = Array.from(e.target.files);
+    const availableSlots = 5 - (attachments.length + replyFiles.length);
+
+    if (addedList.length > availableSlots) {
+      setError(t('attachments.maxFilesExceeded', `You can upload at most ${5 - attachments.length} more files.`));
+      e.target.value = '';
+      return;
+    }
+
+    const validFiles: File[] = [];
+    for (const f of addedList) {
+      const ext = '.' + f.name.split('.').pop()?.toLowerCase();
+      if (!ALLOWED_EXTS.includes(ext)) {
+        setError(t('attachments.invalidType', `File "${f.name}" format is not supported.`));
+        e.target.value = '';
+        return;
+      }
+      if (f.size > 10 * 1024 * 1024) {
+        setError(t('attachments.oversizedFile', `File "${f.name}" exceeds the 10MB limit.`));
+        e.target.value = '';
+        return;
+      }
+      validFiles.push(f);
+    }
+
+    setReplyFiles((prev) => [...prev, ...validFiles]);
+    e.target.value = '';
+  };
+
+  const removeReplyFile = (index: number) => {
+    setReplyFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!id || !replyText.trim()) return;
+    if (!id || (!replyText.trim() && replyFiles.length === 0)) return;
 
     setIsSubmitting(true);
     setError(null);
     setSuccessMessage(null);
 
     try {
-      await ticketApi.addComment(id, replyText.trim(), false);
+      if (replyText.trim()) {
+        await ticketApi.addComment(id, replyText.trim(), false);
+      }
+
+      if (replyFiles.length > 0) {
+        const newAttachments = await attachmentsApi.uploadAttachments(id, replyFiles);
+        setAttachments((prev) => [...prev, ...newAttachments]);
+        setReplyFiles([]);
+      }
+
       setReplyText('');
-      setSuccessMessage(t('tickets.replyPosted'));
+      setSuccessMessage(t('tickets.replyPosted', 'Reply posted successfully.'));
       setRefreshTrigger((r) => r + 1);
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err: unknown) {
@@ -236,12 +293,17 @@ export function TicketDetailsPage() {
     user?.role === 'admin' ||
     (user?.role === 'department_head' && ticket.departmentId && user.departmentId === ticket.departmentId);
 
+  const isCustomerOwner =
+    Boolean(user?.id) &&
+    (ticket.customer?.id === user?.id || ticket.customerId === user?.id);
+
   const canUpload =
     ticket.status !== 'closed' &&
     user?.role !== 'head' &&
     (user?.role === 'admin' ||
-      ticket.customerId === user?.id ||
+      isCustomerOwner ||
       ticket.assigneeId === user?.id ||
+      ticket.assignee?.id === user?.id ||
       user?.role === 'department_head');
 
   return (
@@ -333,12 +395,80 @@ export function TicketDetailsPage() {
                   rows={3}
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
-                  required
+                  required={replyFiles.length === 0}
                 />
-                <div>
-                  <Button type="submit" isLoading={isSubmitting} disabled={isSubmitting}>
-                    {t('tickets.sendReply')}
-                  </Button>
+
+                {/* Selected Files Preview List */}
+                {replyFiles.length > 0 && (
+                  <div className="space-y-1.5 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                    <div className="text-xs font-semibold text-slate-600 mb-1 flex items-center justify-between">
+                      <span>{t('attachments.selectedFiles', 'Attached Files')} ({replyFiles.length})</span>
+                      <span className="text-[11px] text-slate-400 font-normal">
+                        {5 - (attachments.length + replyFiles.length)} {t('attachments.slotsRemaining', 'slots remaining')}
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {replyFiles.map((file, idx) => (
+                        <div
+                          key={`${file.name}-${idx}`}
+                          className="flex items-center justify-between py-1 px-2.5 bg-white border border-slate-200 rounded text-xs"
+                        >
+                          <div className="flex items-center gap-2 truncate pr-2">
+                            <Paperclip className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                            <span className="font-medium text-slate-800 truncate">{file.name}</span>
+                            <span className="text-[11px] text-slate-400 shrink-0">({formatFileSize(file.size)})</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeReplyFile(idx)}
+                            disabled={isSubmitting}
+                            className="text-slate-400 hover:text-rose-600 p-0.5 rounded transition-colors"
+                            title={t('common.remove', 'Remove file')}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
+                  <div className="flex items-center gap-2.5">
+                    <Button type="submit" isLoading={isSubmitting} disabled={isSubmitting}>
+                      {t('tickets.sendReply')}
+                    </Button>
+
+                    {canUpload && (
+                      <>
+                        <input
+                          type="file"
+                          ref={replyFileInputRef}
+                          onChange={handleReplyFileChange}
+                          multiple
+                          accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.csv,.docx,.xlsx"
+                          className="hidden"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => replyFileInputRef.current?.click()}
+                          disabled={isSubmitting || attachments.length + replyFiles.length >= 5}
+                          className="flex items-center gap-1.5 text-xs text-slate-700 hover:bg-slate-50"
+                        >
+                          <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                          <span>{t('attachments.attachFile', 'Attach File')}</span>
+                        </Button>
+                      </>
+                    )}
+                  </div>
+
+                  {canUpload && replyFiles.length === 0 && (
+                    <span className="text-[11px] text-slate-400">
+                      {5 - attachments.length} {t('attachments.slotsRemaining', 'slots remaining')} (max 10MB each)
+                    </span>
+                  )}
                 </div>
               </form>
             </CardContent>
@@ -469,7 +599,7 @@ export function TicketDetailsPage() {
                 attachments={attachments}
                 getDownloadUrl={(attId) => attachmentsApi.getDownloadUrl(ticket.id, attId)}
                 onDelete={handleDeleteAttachment}
-                canDelete={user?.role === 'admin' || ticket.status !== 'closed'}
+                canDelete={user?.role === 'admin' || (ticket.status !== 'closed' && isCustomerOwner)}
                 deletingId={deletingAttId}
               />
             </CardContent>

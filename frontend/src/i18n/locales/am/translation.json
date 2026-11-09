@@ -505,7 +505,11 @@
     "uploadFilesButton": "የተመረጡትን ፋይሎች ጫን",
     "noAttachments": "ምንም የተያያዘ ፋይል የለም።",
     "maxFilesExceeded": "እስከ {{count}} ፋይሎችን ብቻ ማያያዝ ይችላሉ።",
-    "fileTooLarge": "ፋይሉ ከ 10MB ገደብ በላይ ነው።"
+    "fileTooLarge": "ፋይሉ ከ 10MB ገደብ በላይ ነው።",
+    "attachFile": "ፋይል አያይዝ",
+    "slotsRemaining": "የቀሩ ክፍት ቦታዎች",
+    "invalidType": "የፋይሉ ዓይነት አይደገፍም።",
+    "oversizedFile": "ፋይሉ ከ 10MB ገደብ በላይ ነው።"
   },
   "kb": {
     "title": "የእውቀት ማዕከል",

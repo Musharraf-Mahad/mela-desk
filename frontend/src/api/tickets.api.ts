@@ -11,7 +11,31 @@ import type {
 
 export const ticketApi = {
   async createTicket(payload: CreateTicketPayload): Promise<Ticket> {
-    const res = await apiClient.post<ApiResponse<{ ticket: Ticket }>>('/tickets', payload);
+    if (payload.files && payload.files.length > 0) {
+      const formData = new FormData();
+      formData.append('subject', payload.subject);
+      formData.append('description', payload.description);
+      formData.append('category', payload.category);
+      formData.append('priority', payload.priority);
+      if (payload.departmentId) {
+        formData.append('departmentId', payload.departmentId);
+      }
+      for (const file of payload.files) {
+        formData.append('files', file);
+      }
+      const res = await apiClient.post<ApiResponse<{ ticket: Ticket }>>('/tickets', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      if (!res.data.data?.ticket) {
+        throw new Error(res.data.message || 'Failed to create ticket');
+      }
+      return res.data.data.ticket;
+    }
+
+    const { files: _files, ...body } = payload;
+    const res = await apiClient.post<ApiResponse<{ ticket: Ticket }>>('/tickets', body);
     if (!res.data.data?.ticket) {
       throw new Error(res.data.message || 'Failed to create ticket');
     }
