@@ -86,6 +86,7 @@ export interface CreateTicketPayload {
   category: TicketCategory;
   priority: TicketPriority;
   departmentId?: string | null;
+  files?: File[];
 }
 
 export interface PaginatedTickets {

@@ -505,7 +505,11 @@
     "uploadFilesButton": "Upload Selected Files",
     "noAttachments": "No attachments uploaded.",
     "maxFilesExceeded": "You can only upload up to {{count}} files.",
-    "fileTooLarge": "File exceeds the 10MB limit."
+    "fileTooLarge": "File exceeds the 10MB limit.",
+    "attachFile": "Attach File",
+    "slotsRemaining": "slots remaining",
+    "invalidType": "File format is not supported.",
+    "oversizedFile": "File exceeds the 10MB limit."
   },
   "kb": {
     "title": "Knowledge Base",

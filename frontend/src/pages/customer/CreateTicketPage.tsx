@@ -8,8 +8,10 @@ import { Button } from '../../components/common/Button';
 import { Card, CardContent } from '../../components/common/Card';
 import { Alert } from '../../components/common/Alert';
 import { SuggestedArticlesBox } from '../../components/knowledgeBase/SuggestedArticlesBox';
+import { FileUploadZone } from '../../components/common/FileUploadZone';
 import { ticketApi } from '../../api/tickets.api';
 import type { TicketCategory, TicketPriority } from '../../types/ticket';
+import { Paperclip } from 'lucide-react';
 
 export function CreateTicketPage() {
   const navigate = useNavigate();
@@ -19,6 +21,7 @@ export function CreateTicketPage() {
   const [category, setCategory] = useState<TicketCategory>('technical');
   const [priority, setPriority] = useState<TicketPriority>('normal');
   const [description, setDescription] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -34,6 +37,7 @@ export function CreateTicketPage() {
         description,
         category,
         priority,
+        files: files.length > 0 ? files : undefined,
       });
 
       setSuccess(true);
@@ -119,6 +123,21 @@ export function CreateTicketPage() {
                 onChange={(e) => setDescription(e.target.value)}
                 required
               />
+
+              {/* Attachments Section */}
+              <div className="space-y-1.5 pt-1">
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                  <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{t('attachments.title', 'File Attachments (Optional)')}</span>
+                </label>
+                <FileUploadZone
+                  files={files}
+                  onChange={setFiles}
+                  maxFiles={5}
+                  maxSizeMB={10}
+                  disabled={isLoading || success}
+                />
+              </div>
 
               <div className="flex items-center gap-3 pt-3">
                 <Button type="submit" isLoading={isLoading} disabled={isLoading || success}>
